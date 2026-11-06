@@ -1,0 +1,81 @@
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "tailwindcss";
+
+/* Public site by default. The console (`html.theme-console`) remaps the same tokens, so every
+   page uses text-ink, bg-sheet and so on and takes on whichever world it lives in. */
+@theme {
+  --color-paper: #0a0930;
+  --color-paper-deep: #1a1560;
+  --color-sheet: #13104a;
+  --color-ink: #f4f5ff;
+  --color-ink-soft: #c9cdf0;
+  --color-stamp: #7c4dff;
+  --color-stamp-deep: #6a3bf0;
+  --color-seal: #ff9a9a;
+  --color-approve: #3ddc97;
+  --color-caution: #f6c667;
+  --color-periwinkle: #8fa8ff;
+  --color-harbour: #095073;
+  --color-harbour-deep: #002d42;
+  --color-sky: #a4def2;
+  --color-crest: #e9ebef;
+  --color-lagoon: #1f7a78;
+  --font-display: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html.theme-console {
+  --color-paper: #f3f4f6;
+  --color-paper-deep: #e6eef3;
+  --color-sheet: #ffffff;
+  --color-ink: #0c3448;
+  --color-ink-soft: #3f6478;
+  --color-stamp: #095073;
+  --color-stamp-deep: #002d42;
+  --color-seal: #b3261e;
+  --color-approve: #16794c;
+  --color-caution: #8f6500;
+}
+
+@layer base {
+  html { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); -webkit-text-size-adjust: 100%; }
+  body { font-size: 1rem; line-height: 1.6; min-height: 100vh; }
+  h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; letter-spacing: -0.028em; font-weight: 700; text-wrap: balance; }
+  :focus-visible { outline: 3px solid var(--color-periwinkle); outline-offset: 2px; border-radius: 4px; }
+  html.theme-console :focus-visible { outline-color: var(--color-harbour); }
+  html.theme-console h1, html.theme-console h2, html.theme-console h3 { letter-spacing: -0.012em; color: var(--color-harbour); }
+}
+
+@layer components {
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.75rem; padding: 0.5rem 1.35rem; font-weight: 600; background: var(--color-stamp); color: #fff; border-radius: 999px; cursor: pointer; transition: background-color 0.15s; }
+  .btn:hover { background: var(--color-stamp-deep); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-quiet { background: transparent; color: var(--color-ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 45%, transparent); }
+  .btn-quiet:hover { background: color-mix(in srgb, var(--color-ink) 10%, transparent); }
+  .field { display: block; width: 100%; min-height: 2.75rem; padding: 0.5rem 0.8rem; background: var(--color-sheet); border: 1.5px solid color-mix(in srgb, var(--color-ink-soft) 55%, transparent); border-radius: 8px; }
+  .link { color: var(--color-periwinkle); text-decoration: underline; text-underline-offset: 3px; }
+  .hash { font-family: var(--font-mono); font-size: 0.82em; overflow-wrap: anywhere; }
+  /* The crest is a JPEG on pale grey. This takes the grey to white so `multiply` drops it. */
+  .crest-mark { mix-blend-mode: multiply; filter: brightness(1.14) contrast(1.5); }
+  .glass { background: color-mix(in srgb, var(--color-paper-deep) 55%, transparent); border: 1px solid color-mix(in srgb, var(--color-periwinkle) 22%, transparent); border-radius: 14px; }
+  .text-verifiable { background: linear-gradient(95deg, #a06bff, #8fa8ff 75%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* The old dashboards: square-shouldered controls, gradient headers, dotted detail rules. */
+  html.theme-console .btn { border-radius: 6px; font-size: 0.95rem; }
+  html.theme-console .field { border-radius: 6px; border-color: #b8c7d1; }
+  html.theme-console .link { color: var(--color-harbour); }
+  .btn-view { min-height: 2.25rem; padding: 0.25rem 1.15rem; background: var(--color-lagoon); }
+  .btn-view:hover { background: #17605e; }
+  .bg-gradient { background-image: linear-gradient(to right, var(--color-harbour), #3a76c4); color: #fff; }
+  .panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgb(9 80 115 / 0.14); }
+  .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+  .data-table th { padding: 0.8rem 1rem; font-weight: 600; white-space: nowrap; }
+  .data-table td { padding: 0.8rem 1rem; border-bottom: 1px solid #e3e7ea; }
+  .data-table tbody tr:nth-child(odd) td { background: #f7f8f9; }
+  .data-table tbody tr:last-child td { border-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
