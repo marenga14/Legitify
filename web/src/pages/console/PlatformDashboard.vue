@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import PageHead from "../../components/console/PageHead.vue";
 import { api } from "../../lib/api";
+import { t } from "../../lib/i18n";
 import type { Overview } from "./platform";
 
 const data = ref<Overview | null>(null);
@@ -16,16 +17,16 @@ onMounted(async () => {
 const cards = computed(() => {
   const d = data.value;
   return d ? [
-    { name: "Institutions", number: d.institutions.length },
-    { name: "Active", number: d.institutions.filter((i) => i.active).length },
-    { name: "Documents", number: d.documents },
-    { name: "Requests", number: d.requests },
+    { name: t("platform.institutions"), number: d.institutions.length },
+    { name: t("platform.active"), number: d.institutions.filter((i) => i.active).length },
+    { name: t("platform.documents"), number: d.documents },
+    { name: t("platform.requests"), number: d.requests },
   ] : [];
 });
 </script>
 
 <template>
-  <PageHead title="Dashboard" />
+  <PageHead :title="t('platform.dashboard')" />
   <p v-if="error" class="mt-4 text-seal" role="alert">{{ error }}</p>
   <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <div v-for="c in cards" :key="c.name" class="panel overflow-hidden">
@@ -33,12 +34,12 @@ const cards = computed(() => {
       <p class="py-6 text-center text-6xl font-extrabold text-harbour">{{ c.number.toLocaleString() }}</p>
     </div>
   </div>
-  <div v-if="data" class="panel mt-4 overflow-x-auto" tabindex="0" role="region" aria-label="Institutions">
+  <div v-if="data" class="panel mt-4 overflow-x-auto" tabindex="0" role="region" :aria-label="t('platform.institutions')">
     <table class="data-table">
-      <thead class="bg-gradient"><tr><th>No</th><th>Institution</th><th>Location</th><th>Status</th><th>Documents</th><th>Requests</th></tr></thead>
+      <thead class="bg-gradient"><tr><th>{{ t("common.no") }}</th><th>{{ t("platform.institution") }}</th><th>{{ t("platform.location") }}</th><th>{{ t("common.status") }}</th><th>{{ t("platform.documents") }}</th><th>{{ t("platform.requests") }}</th></tr></thead>
       <tbody>
         <tr v-for="(i, n) in data.institutions" :key="i.id">
-          <td>{{ n + 1 }}</td><td>{{ i.name }}</td><td>{{ i.location }}</td><td>{{ i.active ? "Active" : "Suspended" }}</td><td>{{ i.documents }}</td><td>{{ i.requests }}</td>
+          <td>{{ n + 1 }}</td><td>{{ i.name }}</td><td>{{ i.location }}</td><td>{{ i.active ? t("platform.active") : t("platform.suspended") }}</td><td>{{ i.documents }}</td><td>{{ i.requests }}</td>
         </tr>
       </tbody>
     </table>

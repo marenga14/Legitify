@@ -5,7 +5,8 @@ import { Check, CircleDashed, FileSearch, ScanLine, TriangleAlert, X } from "luc
 import Fingerprint from "./Fingerprint.vue";
 import VerdictPanel from "./VerdictPanel.vue";
 import { sha256File } from "../lib/hash";
-import { verifyByHash, type Verdict } from "../lib/registry";
+import { t } from "../lib/i18n";
+import { registryConnected, verifyByHash, type Verdict } from "../lib/registry";
 
 type Phase = "ready" | "hashing" | "reading" | "done" | "unreachable";
 const phase = ref<Phase>("ready");
@@ -34,10 +35,10 @@ async function check(file: File | undefined) {
     if (mine !== run) return;
     verdict.value = found;
     phase.value = "done";
-  } catch (e) {
+  } catch {
     if (mine !== run) return;
     phase.value = "unreachable";
-    error.value = e instanceof Error && e.message.includes("connected") ? e.message : "The public record can't be reached right now. Your file wasn't sent anywhere. Try again shortly.";
+    error.value = t(registryConnected ? "errors.recordUnreachable" : "errors.registryOff");
   }
 }
 function picked(e: Event) {
@@ -55,16 +56,16 @@ defineExpose({ choose });
 /** Every word and colour here comes from the real check. Nothing says "issued" before a verdict does. */
 const status = computed(() => {
   const v = verdict.value;
-  if (phase.value === "hashing") return { icon: ScanLine, tone: "wait", title: "Computing fingerprint", body: fileName.value };
-  if (phase.value === "reading") return { icon: FileSearch, tone: "wait", title: "Reading the public record", body: fileName.value };
-  if (phase.value === "unreachable") return { icon: TriangleAlert, tone: "warn", title: "Not checked", body: "Fingerprint computed, record unavailable" };
-  if (!v) return { icon: CircleDashed, tone: "wait", title: "Ready to check", body: "Drop a file or choose one" };
+  if (phase.value === "hashing") return { icon: ScanLine, tone: "wait", title: t("verify.hashing"), body: fileName.value };
+  if (phase.value === "reading") return { icon: FileSearch, tone: "wait", title: t("verify.reading"), body: fileName.value };
+  if (phase.value === "unreachable") return { icon: TriangleAlert, tone: "warn", title: t("verify.notChecked"), body: t("verify.notCheckedBody") };
+  if (!v) return { icon: CircleDashed, tone: "wait", title: t("verify.ready"), body: t("verify.readyBody") };
   switch (v.status) {
-    case "authentic": return { icon: Check, tone: "good", title: "On the public record", body: `Issued by ${v.institution}` };
-    case "revoked": return { icon: X, tone: "bad", title: "Revoked", body: `By ${v.institution}` };
-    case "replaced": return { icon: TriangleAlert, tone: "warn", title: "Replaced", body: "A newer version exists" };
-    case "suspended": return { icon: TriangleAlert, tone: "warn", title: "Issuer suspended", body: v.institution };
-    default: return { icon: CircleDashed, tone: "wait", title: "No record found", body: "That doesn't make it fake" };
+    case "authentic": return { icon: Check, tone: "good", title: t("verify.onRecord"), body: t("verify.issuedBy", { institution: v.institution }) };
+    case "revoked": return { icon: X, tone: "bad", title: t("verify.revoked"), body: t("verify.revokedBy", { institution: v.institution }) };
+    case "replaced": return { icon: TriangleAlert, tone: "warn", title: t("verify.replaced"), body: t("verify.replacedBody") };
+    case "suspended": return { icon: TriangleAlert, tone: "warn", title: t("verify.issuerSuspended"), body: v.institution };
+    default: return { icon: CircleDashed, tone: "wait", title: t("verify.noRecord"), body: t("verify.noRecordBody") };
   }
 });
 </script>
@@ -74,7 +75,7 @@ const status = computed(() => {
     <button
       type="button"
       :class="['scene', dragging && 'is-dragging', phase === 'hashing' && 'is-scanning', `tone-${status.tone}`]"
-      :aria-label="fileName ? 'Check another document' : 'Check a document: choose a file'"
+      :aria-label="fileName ? t('verify.another') : t('verify.choose')"
       @click="choose"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
@@ -95,7 +96,7 @@ const status = computed(() => {
       <span class="sheet" aria-hidden="true">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         <img src="/seal.jpg" alt="" class="crest crest-mark" />
-        <span class="sheet-name">{{ fileName || "Your document" }}</span>
+        <span class="sheet-name">{{ fileName || t("verify.yourDocument") }}</span>
         <span class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="beam"></span>
       </span>
@@ -113,8 +114,8 @@ const status = computed(() => {
     <input ref="input" type="file" class="sr-only" tabindex="-1" aria-hidden="true" @change="picked" />
 
     <div class="mt-3 text-center text-sm text-ink-soft">
-      <p v-if="fileHash"><span class="sr-only">File fingerprint: </span><span class="hash text-periwinkle" data-testid="file-hash">{{ fileHash }}</span></p>
-      <p class="mt-1">Your file stays on this device. Only its fingerprint is compared.</p>
+      <p v-if="fileHash"><span class="sr-only">{{ t("verify.fingerprintLabel") }}</span><span class="hash text-periwinkle" data-testid="file-hash">{{ fileHash }}</span></p>
+      <p class="mt-1">{{ t("verify.privacy") }}</p>
     </div>
     <div class="mt-5" aria-live="polite">
       <div v-if="verdict" class="glass p-6"><VerdictPanel :verdict="verdict" :file-hash="fileHash" /></div>

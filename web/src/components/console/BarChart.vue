@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { dateLocale, t } from "../../lib/i18n";
 
 const props = defineProps<{ title: string; noun: string; data: { month: string; count: number }[] }>();
 const monthName = (m: string, style: "short" | "long") =>
-  new Date(`${m}-01T00:00:00Z`).toLocaleDateString(undefined, { month: style, year: style === "long" ? "numeric" : undefined, timeZone: "UTC" });
+  new Date(`${m}-01T00:00:00Z`).toLocaleDateString(dateLocale(), { month: style, year: style === "long" ? "numeric" : undefined, timeZone: "UTC" });
 const max = computed(() => Math.max(...props.data.map((d) => d.count), 0));
 const peak = computed(() => props.data.findIndex((d) => d.count === max.value));
 </script>
@@ -11,7 +12,7 @@ const peak = computed(() => props.data.findIndex((d) => d.count === max.value));
 <template>
   <figure class="panel p-5">
     <figcaption class="font-semibold text-harbour">{{ title }}</figcaption>
-    <p v-if="max === 0" class="mt-4 text-ink-soft">Nothing in the last six months yet.</p>
+    <p v-if="max === 0" class="mt-4 text-ink-soft">{{ t("dashboard.empty") }}</p>
     <template v-else>
       <div class="mt-6 grid h-52 grid-cols-6 gap-3 border-b border-[#b8c7d1]" aria-hidden="true">
         <div v-for="(d, i) in data" :key="d.month" tabindex="-1" class="group relative flex h-full items-end justify-center">
@@ -25,7 +26,7 @@ const peak = computed(() => props.data.findIndex((d) => d.count === max.value));
       </div>
       <table class="sr-only">
         <caption>{{ title }}</caption>
-        <thead><tr><th>Month</th><th>{{ noun }}</th></tr></thead>
+        <thead><tr><th>{{ t("dashboard.month") }}</th><th>{{ noun }}</th></tr></thead>
         <tbody><tr v-for="d in data" :key="d.month"><td>{{ monthName(d.month, "long") }}</td><td>{{ d.count }}</td></tr></tbody>
       </table>
     </template>

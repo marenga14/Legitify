@@ -2,40 +2,47 @@
 import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import BrandMark from "./components/BrandMark.vue";
+import LanguageSwitch from "./components/LanguageSwitch.vue";
 import { session } from "./lib/api";
 import { networkName } from "./lib/config";
+import { currentLocale, t } from "./lib/i18n";
+import { showTitle } from "./router";
 
 const route = useRoute();
 const consoleArea = computed(() => route.path.startsWith("/app"));
 const open = ref(false);
 watch(() => route.path, () => (open.value = false));
-const links = [
-  { to: "/verify", label: "Check a document" },
-  { to: "/institutions", label: "Institutions" },
-  { to: "/verifiers", label: "Employers" },
-  { to: "/developers", label: "Developers" },
-];
+watch(currentLocale, () => showTitle(route.meta.title ?? "home"));
+const links = computed(() => [
+  { to: "/verify", label: t("nav.check") },
+  { to: "/institutions", label: t("nav.institutions") },
+  { to: "/verifiers", label: t("nav.employers") },
+  { to: "/developers", label: t("nav.developers") },
+]);
 </script>
 
 <template>
   <RouterView v-if="consoleArea" />
   <div v-else class="public-shell">
-    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:p-3 focus:bg-sheet">Skip to content</a>
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:p-3 focus:bg-sheet">{{ t("nav.skip") }}</a>
     <header class="relative z-30">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-5">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-5 md:gap-6">
         <RouterLink to="/" class="flex items-center gap-2 text-xl font-bold tracking-tight"><BrandMark />Legitify</RouterLink>
-        <button class="btn btn-quiet md:hidden" :aria-expanded="open" aria-controls="nav" @click="open = !open">Menu</button>
-        <nav id="nav" :class="[open ? 'flex' : 'hidden', 'absolute inset-x-0 top-20 flex-col gap-1 bg-paper-deep px-6 pb-5 pt-2 shadow-xl md:static md:flex md:flex-1 md:flex-row md:items-center md:justify-end md:gap-8 md:bg-transparent md:p-0 md:shadow-none']" aria-label="Main">
+        <nav id="nav" :class="[open ? 'flex' : 'hidden', 'absolute inset-x-0 top-20 flex-col gap-1 bg-paper-deep px-6 pb-5 pt-2 shadow-xl md:static md:flex md:flex-1 md:flex-row md:items-center md:justify-end md:gap-8 md:bg-transparent md:p-0 md:shadow-none']" :aria-label="t('nav.main')">
           <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="py-2 text-sm font-medium text-ink-soft hover:text-ink" active-class="text-ink underline decoration-periwinkle decoration-2 underline-offset-8">{{ l.label }}</RouterLink>
-          <RouterLink :to="session.current ? '/app' : '/sign-in'" class="btn mt-2 min-h-10! py-1! text-sm md:mt-0">{{ session.current ? "Open console" : "Staff sign-in" }}</RouterLink>
+          <RouterLink :to="session.current ? '/app' : '/sign-in'" class="btn mt-2 min-h-10! py-1! text-sm md:mt-0">{{ session.current ? t("nav.openConsole") : t("nav.staffSignIn") }}</RouterLink>
         </nav>
+        <div class="flex items-center gap-3">
+          <LanguageSwitch class="text-ink-soft" />
+          <button class="btn btn-quiet md:hidden" :aria-expanded="open" aria-controls="nav" @click="open = !open">{{ t("nav.menu") }}</button>
+        </div>
       </div>
     </header>
     <main id="main" class="relative z-10"><RouterView /></main>
     <footer class="relative z-10 mt-24 border-t border-periwinkle/20">
       <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-ink-soft">
-        <p>Credential records are public on {{ networkName }}. Documents and requests are not.</p>
-        <RouterLink to="/request" class="link">Ask an institution to confirm a document</RouterLink>
+        <p>{{ t("footer.record", { network: networkName }) }}</p>
+        <RouterLink to="/request" class="link">{{ t("footer.ask") }}</RouterLink>
       </div>
     </footer>
   </div>

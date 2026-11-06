@@ -38,7 +38,14 @@ html.theme-console {
   --color-caution: #8f6500;
 }
 
+/* The Latin face has no CJK glyphs, and tight tracking crowds them. */
+html:lang(zh) {
+  --font-display: "Plus Jakarta Sans Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+}
+
 @layer base {
+  html:lang(zh) h1, html:lang(zh) h2, html:lang(zh) h3 { letter-spacing: 0 !important; line-height: 1.2 !important; }
   html { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); -webkit-text-size-adjust: 100%; }
   body { font-size: 1rem; line-height: 1.6; min-height: 100vh; }
   h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; letter-spacing: -0.028em; font-weight: 700; text-wrap: balance; }

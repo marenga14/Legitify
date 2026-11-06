@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../lib/api";
+import { dateLocale, t } from "../lib/i18n";
 
 interface Track {
   subject: string; institution: string; status: string; submittedAt: string; dueAt: string;
@@ -19,11 +20,11 @@ onMounted(async () => {
   }
 });
 const outcome = computed(() => ({
-  confirmed: { title: "Confirmed", tone: "text-approve" },
-  not_confirmed: { title: "Not confirmed", tone: "text-seal" },
-  needs_information: { title: "More information needed", tone: "text-caution" },
+  confirmed: { title: t("track.confirmed"), tone: "text-approve" },
+  not_confirmed: { title: t("track.notConfirmed"), tone: "text-seal" },
+  needs_information: { title: t("track.needsInfo"), tone: "text-caution" },
 })[r.value?.outcome ?? ""]);
-const date = (d: string) => new Date(d).toLocaleDateString(undefined, { dateStyle: "long" });
+const date = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { dateStyle: "long" });
 </script>
 
 <template>
@@ -31,19 +32,19 @@ const date = (d: string) => new Date(d).toLocaleDateString(undefined, { dateStyl
     <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
     <template v-else-if="r">
       <h1 class="text-5xl">{{ r.subject }}</h1>
-      <p class="mt-2 text-ink-soft">Sent to {{ r.institution }} on {{ date(r.submittedAt) }}</p>
+      <p class="mt-2 text-ink-soft">{{ t("track.sent", { institution: r.institution, date: date(r.submittedAt) }) }}</p>
       <div v-if="outcome" class="mt-8">
         <h2 :class="['text-3xl', outcome.tone]">{{ outcome.title }}</h2>
         <p v-if="r.note" class="mt-2 max-w-prose whitespace-pre-line">{{ r.note }}</p>
-        <p class="mt-2 text-ink-soft">{{ r.institution }} answered on {{ date(r.answeredAt!) }}.</p>
-        <p class="mt-4 text-ink-soft">Receipt <span class="hash">{{ r.receipt }}</span></p>
+        <p class="mt-2 text-ink-soft">{{ t("track.answered", { institution: r.institution, date: date(r.answeredAt!) }) }}</p>
+        <p class="mt-4 text-ink-soft">{{ t("track.receipt") }} <span class="hash">{{ r.receipt }}</span></p>
       </div>
       <div v-else class="mt-8">
-        <h2 class="text-3xl">Waiting for {{ r.institution }}</h2>
-        <p class="mt-2 max-w-prose text-ink-soft">{{ r.status === "in_review" ? "Staff are reviewing it." : "It's in their queue." }}</p>
+        <h2 class="text-3xl">{{ t("track.waiting", { institution: r.institution }) }}</h2>
+        <p class="mt-2 max-w-prose text-ink-soft">{{ r.status === "in_review" ? t("track.inReview") : t("track.queued") }}</p>
       </div>
-      <p class="mt-10 glass p-5">Save this link to check back. It's the only way to reach this request.<br /><span class="hash">{{ link }}</span></p>
+      <p class="mt-10 glass p-5">{{ t("track.save") }}<br /><span class="hash">{{ link }}</span></p>
     </template>
-    <p v-else>Loading your request</p>
+    <p v-else>{{ t("track.loading") }}</p>
   </section>
 </template>

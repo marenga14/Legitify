@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { session, type Role } from "./lib/api";
+import { t } from "./lib/i18n";
 
 declare module "vue-router" {
   interface RouteMeta { title?: string; roles?: Role[] }
@@ -15,33 +16,33 @@ export const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: (to) => (to.hash ? { el: to.hash, behavior: "smooth" } : { top: 0 }),
   routes: [
-    { path: "/", component: page("Home"), meta: { title: "Legitify" } },
-    { path: "/institutions", component: page("Institutions"), meta: { title: "For institutions" } },
-    { path: "/verifiers", component: page("Verifiers"), meta: { title: "For employers and verifiers" } },
-    { path: "/developers", component: page("Developers"), meta: { title: "For developers" } },
-    { path: "/verify", component: page("Verify"), meta: { title: "Check a document" } },
-    { path: "/v/:id", component: page("Credential"), meta: { title: "Credential record" } },
-    { path: "/request", component: page("RequestNew"), meta: { title: "Ask an institution" } },
-    { path: "/track/:token", component: page("RequestTrack"), meta: { title: "Your request" } },
-    { path: "/shared/:token", component: page("Shared"), meta: { title: "Shared certificate" } },
-    { path: "/sign-in", component: page("SignIn"), meta: { title: "Staff sign-in" } },
+    { path: "/", component: page("Home"), meta: { title: "home" } },
+    { path: "/institutions", component: page("Institutions"), meta: { title: "institutions" } },
+    { path: "/verifiers", component: page("Verifiers"), meta: { title: "verifiers" } },
+    { path: "/developers", component: page("Developers"), meta: { title: "developers" } },
+    { path: "/verify", component: page("Verify"), meta: { title: "verify" } },
+    { path: "/v/:id", component: page("Credential"), meta: { title: "credential" } },
+    { path: "/request", component: page("RequestNew"), meta: { title: "request" } },
+    { path: "/track/:token", component: page("RequestTrack"), meta: { title: "track" } },
+    { path: "/shared/:token", component: page("Shared"), meta: { title: "shared" } },
+    { path: "/sign-in", component: page("SignIn"), meta: { title: "signIn" } },
     {
       path: "/app",
       component: () => import("./components/console/ConsoleLayout.vue"),
       children: [
         { path: "", redirect: () => homeFor(session.current?.role) },
-        { path: "dashboard", component: console_("Dashboard"), meta: { title: "Dashboard", roles: STAFF } },
-        { path: "inbox", component: page("Inbox"), meta: { title: "Inbox", roles: STAFF } },
-        { path: "requests/:id", component: page("RequestDetail"), meta: { title: "Request", roles: STAFF } },
-        { path: "documents", component: console_("Documents"), meta: { title: "Documents", roles: STAFF } },
-        { path: "documents/:id", component: console_("DocumentDetail"), meta: { title: "Document details", roles: STAFF } },
-        { path: "operators", component: console_("Operators"), meta: { title: "Operators", roles: ["admin"] } },
-        { path: "settings", component: console_("Settings"), meta: { title: "Settings", roles: ["platform", ...STAFF] } },
-        { path: "platform", component: console_("PlatformDashboard"), meta: { title: "Dashboard", roles: ["platform"] } },
-        { path: "platform/institutions", component: console_("PlatformInstitutions"), meta: { title: "Institutions", roles: ["platform"] } },
+        { path: "dashboard", component: console_("Dashboard"), meta: { title: "dashboard", roles: STAFF } },
+        { path: "inbox", component: page("Inbox"), meta: { title: "inbox", roles: STAFF } },
+        { path: "requests/:id", component: page("RequestDetail"), meta: { title: "requestDetail", roles: STAFF } },
+        { path: "documents", component: console_("Documents"), meta: { title: "documents", roles: STAFF } },
+        { path: "documents/:id", component: console_("DocumentDetail"), meta: { title: "documentDetail", roles: STAFF } },
+        { path: "operators", component: console_("Operators"), meta: { title: "operators", roles: ["admin"] } },
+        { path: "settings", component: console_("Settings"), meta: { title: "settings", roles: ["platform", ...STAFF] } },
+        { path: "platform", component: console_("PlatformDashboard"), meta: { title: "dashboard", roles: ["platform"] } },
+        { path: "platform/institutions", component: console_("PlatformInstitutions"), meta: { title: "platformInstitutions", roles: ["platform"] } },
       ],
     },
-    { path: "/:rest(.*)*", component: page("NotFound"), meta: { title: "Page not found" } },
+    { path: "/:rest(.*)*", component: page("NotFound"), meta: { title: "notFound" } },
   ],
 });
 
@@ -54,7 +55,7 @@ router.beforeEach((to) => {
   if (!role) return { path: "/sign-in", query: { next: to.fullPath } };
   if (!roles.includes(role)) return homeFor(role);
 });
-router.afterEach((to) => {
-  const title = to.meta.title ?? "Legitify";
-  document.title = title === "Legitify" ? title : `${title} | Legitify`;
-});
+export function showTitle(key: string) {
+  document.title = key === "home" ? "Legitify" : `${t(`titles.${key}`)} | Legitify`;
+}
+router.afterEach((to) => showTitle(to.meta.title ?? "home"));

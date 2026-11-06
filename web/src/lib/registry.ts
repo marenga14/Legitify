@@ -1,5 +1,6 @@
 import { createPublicClient, http, isHex, parseAbi, type Hex } from "viem";
 import { chain, registryAddress } from "./config";
+import { t } from "./i18n";
 
 const abi = parseAbi([
   "struct Credential { address issuer; uint32 institutionId; uint40 issuedAt; uint8 revocationReason; uint40 revokedAt; bytes32 fileHash; bytes32 replacedBy; bytes storageCid; }",
@@ -12,7 +13,7 @@ const abi = parseAbi([
 
 export type VerdictStatus = "not_found" | "authentic" | "revoked" | "replaced" | "suspended";
 const STATUSES: VerdictStatus[] = ["not_found", "authentic", "revoked", "replaced", "suspended"];
-const REASONS = ["", "issued in error", "fraud", "withdrawn", "another reason"];
+const REASONS = ["", "issuedInError", "fraud", "withdrawn", "other"];
 
 export interface Verdict {
   status: VerdictStatus;
@@ -48,7 +49,7 @@ function toVerdict(v: {
 
 export const registryConnected = Boolean(registryAddress);
 const contract = () => {
-  if (!registryAddress) throw new Error("The public registry isn't connected in this environment.");
+  if (!registryAddress) throw new Error(t("errors.registryOff"));
   return { address: registryAddress, abi } as const;
 };
 

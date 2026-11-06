@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import BarChart from "../../components/console/BarChart.vue";
 import { api, session } from "../../lib/api";
+import { t } from "../../lib/i18n";
 
 interface Stats {
   operators: number; documents: number; openRequests: number; answered: number;
@@ -21,16 +22,16 @@ const cards = computed(() => {
   const s = stats.value;
   if (!s) return [];
   return [
-    ...(session.current?.role === "admin" ? [{ name: "Operators", number: s.operators, to: "/app/operators" }] : []),
-    { name: "Documents", number: s.documents, to: "/app/documents" },
-    { name: "Open requests", number: s.openRequests, to: "/app/inbox" },
-    { name: "Answered", number: s.answered, to: "/app/inbox" },
+    ...(session.current?.role === "admin" ? [{ name: t("dashboard.operators"), number: s.operators, to: "/app/operators" }] : []),
+    { name: t("dashboard.documents"), number: s.documents, to: "/app/documents" },
+    { name: t("dashboard.openRequests"), number: s.openRequests, to: "/app/inbox" },
+    { name: t("dashboard.answered"), number: s.answered, to: "/app/inbox" },
   ];
 });
 </script>
 
 <template>
-  <h1 class="sr-only">Dashboard</h1>
+  <h1 class="sr-only">{{ t("dashboard.title") }}</h1>
   <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
   <div class="relative flex min-h-36 items-center justify-between overflow-hidden rounded-md bg-gradient-to-r from-white via-[#d6eef8] to-sky px-7 py-5 shadow-sm">
     <p class="text-2xl font-bold text-harbour">{{ institution }}</p>
@@ -43,7 +44,7 @@ const cards = computed(() => {
     </RouterLink>
   </div>
   <div v-if="stats" class="mt-4 grid gap-3 xl:grid-cols-2">
-    <BarChart title="Certificates created" noun="certificates" :data="stats.documentsByMonth" />
-    <BarChart title="Requests received" noun="requests" :data="stats.requestsByMonth" />
+    <BarChart :title="t('dashboard.certificatesChart')" :noun="t('dashboard.certificatesNoun')" :data="stats.documentsByMonth" />
+    <BarChart :title="t('dashboard.requestsChart')" :noun="t('dashboard.requestsNoun')" :data="stats.requestsByMonth" />
   </div>
 </template>

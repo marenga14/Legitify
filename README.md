@@ -27,6 +27,10 @@ cd web && npm install && npm run dev
 
 `contracts/script/LocalSeed.s.sol` seeds a fictional institution on a local anvil chain.
 
+## Languages
+
+The web app ships in English, Kiswahili and Simplified Chinese. English is the source in `web/src/locales/en.ts`, and `sw.ts` and `zh.ts` must match it key for key. API messages stay in English and are translated in `web/src/locales/server.ts`. `npm test` in `web/` fails if a key, a placeholder or an API message is missing.
+
 ## Rules that keep this trustworthy
 
 - The registry decides authenticity. The agent never answers; only staff can.

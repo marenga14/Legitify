@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { apiUrl } from "./config";
+import { localizeServerError, t } from "./i18n";
 
 export type Role = "platform" | "admin" | "operator";
 export interface Session { token: string; role: Role; account: string; owner: string; mode: "eoa" | "smart"; institutionId?: number }
@@ -34,12 +35,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${apiUrl}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError("Legitify's service can't be reached right now. Try again shortly.", 0);
+    throw new ApiError(t("errors.offline"), 0);
   }
   if (res.status === 401) setSession(null);
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new ApiError(body?.error ?? `The request failed (${res.status}).`, res.status);
+    throw new ApiError(body?.error ? localizeServerError(body.error) : t("errors.requestFailed", { status: res.status }), res.status);
   }
   return (res.headers.get("content-type")?.includes("json") ? res.json() : res.blob()) as Promise<T>;
 }
