@@ -1,147 +1,50 @@
 # Legitfy
 
-Legitfy lets anyone check a document against a public record, and lets institutions issue credentials and answer verification requests from one private workspace. Files stay private. Only their fingerprints go on-chain.
+Legitfy lets anyone check whether a document is genuine, directly against a public record, and gives institutions one private place to issue documents and answer verification requests.
 
-**Status:** pre-launch. The full flow runs locally and nothing is deployed yet. BOT Chain (mainnet 677, testnet 968) is the main network.
+**Status:** pre-launch. Nothing is live on a public network yet.
 
-## What Legitfy offers
+## The problem
 
-### For anyone checking a document
+Certificates decide who gets hired, promoted or admitted, but the way they're checked hasn't kept up.
 
-- **Free public checks.** Drop in a file to see who issued it and whether it's still in force. No account is needed, and the file is hashed in the browser and never uploaded.
-- **QR links and certificate IDs.** Each published certificate carries a QR code and a short printed ID, such as `UD-26-7K4Q9-XPM2C`, that open its public record. The on-chain ID is the hash of the printed one, so anyone can look it up without a Legitfy server.
-- **Ask an institution.** If there's no record, send the document to the institution that issued it and follow the answer through a private tracking link.
+- **A document that looks right proves very little.** A convincing fake is easy to make, and a stamp or signature can be copied.
+- **Checking depends on who you can reach.** Employers and universities email or phone registrars, then wait days or weeks, often with no answer.
+- **Institutions carry the load by hand.** Requests arrive through inboxes and front desks, with no owner, no deadline and no record of who answered.
+- **Personal documents travel too far.** Certificates get forwarded and left in inboxes, with no way to see who opened them or take them back.
 
-### For institutions
+## What Legitfy does
 
-- **Credential publishing.** Staff upload a final PDF, Legitfy stamps a QR code on it, and its fingerprint is published to the public record from their wallet.
-- **Request inbox.** Every verification request gets an owner, a deadline and a history. Overdue requests move from Officer (72 hours) to Registrar (48) to Legal (24).
-- **Optional AI assistant.** With consent from the institution and the requester, an assistant summarises a document and flags inconsistencies. It can never answer.
-- **Issuer checks on each request.** Requests are escalated when the registry shows a file was revoked, or was issued by a different institution.
-- **Share links.** Share a certificate with one recipient through a link that expires and can be withdrawn.
-- **Staff roles.** An admin adds operators and sets their review level.
-- **Tamper-evident history.** Views, escalations and answers form a hash chain, and a daily root can be anchored on-chain.
-- **Optional public listing.** Institutions can choose to show their name and logo on the home page.
+- **Institutions are checked first.** Each one applies with its registration documents, and the person applying has their identity confirmed before approval.
+- **Institutions publish a fingerprint of each document.** The fingerprint goes on a public blockchain, and the document stays private.
+- **Anyone can check, free.** Drop in a file, scan its seal or type its certificate ID to see who issued it and whether it still stands. No account is needed, and the file never leaves your device.
+- **Employers can check many at once.** Upload a list and get a spreadsheet of results back.
+- **When there's no record, ask the source.** Requests go to the issuing institution, where someone owns each one and the history can't be quietly rewritten.
 
-### For the platform admin
+## The vision
 
-- **Application review.** Institutions apply with a registration document and a letter of mandate signed and sealed by their head. Approving registers them on-chain from the admin's wallet.
-- **Institution management.** Register, suspend and reactivate institutions.
-- **Network management.** Update network details after deployment, and add networks for public checks to search. A network is refused unless the admin's own current registry answers there.
+We want checking a document to be as simple as checking a website address: instant, free for the person asking, and not dependent on knowing anyone.
 
-### Not built yet
+Public verification is the front door. Behind it, Legitfy becomes a trusted way for institutions to exchange documents safely, starting with universities, colleges and professional bodies in Tanzania and growing across borders. A graduate's record should mean the same thing wherever they take it.
 
-Email notifications, a reply path for "needs more information", revoking or replacing credentials from the console, gas sponsorship, payments, and receipts a third party can verify independently. Networks other than the main one are search-only: sign-in, publishing and requests stay on the main network.
+## The chains
 
-## Layout
+**[BOT Chain](https://botchain.ai)** is Legitfy's main network. It holds the public record, which you can inspect on [BOTScan](https://scan.botchain.ai).
 
-| Folder | What it is |
-|---|---|
-| `contracts/` | Foundry. `LegitifyRegistry` (credentials), `AuditAnchor` (daily audit roots), `LegitifyPaymaster` (gas sponsorship, not connected yet) |
-| `api/` | Node + Hono. Applications, request desk, agent triage, escalation, audit log, encrypted files |
-| `web/` | Vue 3 + Vite + Tailwind. Public site, verifier, application flow and console, in light and dark themes |
+| Network | Chain ID | Use |
+|---|---|---|
+| BOT Chain | 677 | Main network |
+| BOT Chain Testnet | 968 | Testing |
 
-## Run it
+Public checks can search more than one network, so a document issued on another supported chain can still be found.
 
-```sh
-# contracts (needs Foundry)
-cd contracts && make deps && forge test
+**What goes on chain:** document fingerprints, issue and revocation dates, institution names, and a daily fingerprint of our activity log.
 
-# api: copy .env.example to .env and fill in the secrets it lists
-cd api && npm install && npm test && npm run dev
+**What never goes on chain:** documents, names of certificate holders, or any other personal data. A blockchain can't be erased, so private details stay off it.
 
-# web: copy .env.example to .env
-cd web && npm install && npm run dev
-```
+## Learn more
 
-Without `DATABASE_URL`, the API uses PGlite in `api/.data`, so local development needs no database server. Set `TEST_DATABASE_URL` to run the API tests against real Postgres. That wipes the database it points at.
-
-### Local end-to-end stack
-
-`scripts/local-up.sh` starts anvil on port 8546, deploys and seeds the contracts, writes sample PDFs to `.local/samples/`, and fills `api/.env` and `web/.env`. Re-running it keeps your data; `--reset` starts from nothing. It uses anvil's public test keys, so never point it at a real network.
-
-| Anvil account | Role |
-|---|---|
-| 0 | Platform admin |
-| 1 | Admin, Kilimani University |
-| 2 | Operator, Kilimani, through a smart account (can't publish) |
-| 3 | Operator, Kilimani, direct wallet |
-| 4 | Admin, Pwani College |
-
-To use your own wallets, create a root `.env.local` with `LOCAL_PLATFORM_WALLET=0x...` and `LOCAL_ADMIN_WALLET=0x...` (Kilimani admin), then re-run the script. Each is funded with 100 local ETH and replaces the seeded account in that role.
-
-## Joining and network details
-
-Institutions apply at `/apply` with their registration document, the applicant's government ID type and number, and a wallet they prove they hold. Reviewers confirm the ID with the issuing authority. The number is stored encrypted, each view is audited, and rejecting an application erases its personal details and files. After approval, admins edit contact details directly and request changes to registered details with evidence, which the platform reviews. The on-chain name is permanent. They then download a pre-filled letter of mandate, have their head sign and seal it, and upload it from their tracking link. The platform admin reviews applications in the console, and approving registers the institution on-chain from the admin's wallet. Registered names can't be changed or deleted.
-
-After deployment, the platform admin sets the network name, chain ID, RPC URL, explorer and registry address under Settings. Saving checks that the RPC answers on that chain and that the admin owns the registry. Public pages show BOT Chain mainnet details while the app runs on a development chain.
-
-## Where files live
-
-Legitfy doesn't use IPFS. The chain holds a fingerprint of each file, and the file itself is encrypted with AES-256-GCM and stored on a volume attached to the API.
-
-| Data | Where it lives |
-|---|---|
-| Fingerprints, dates, institution names | Public, on-chain |
-| Certificates, request files, application documents | Encrypted, API storage |
-| Institution and network logos | Unencrypted, API storage, served publicly |
-| Requests, staff details, audit log | Postgres |
-
-We keep documents off IPFS because they hold personal data. Anything published there can be copied and can't be reliably deleted, so encrypting it first would only protect it until a key leaks, and an institution couldn't honour a request to erase it. The registry's optional `storageCid` field stays empty. The contract isn't upgradeable, so the field remains, and it costs nothing when unused.
-
-## Hosting
-
-The API has to be hosted. Public checks only need the static site and an RPC, but sign-in, publishing, applications, requests, share links and audit anchoring all run on it.
-
-| Part | Needs |
-|---|---|
-| `web/` | Vercel, built with the `VITE_` values for the target network |
-| `api/` | One always-on container with a persistent volume, plus Postgres. Serverless and edge platforms won't work, because it uses the filesystem and background timers |
-| RPC | The network's public RPC is enough to start |
-
-### Deploying
-
-**API (Docker and nginx).** `compose.yaml` runs the API and Postgres. Clone this repo to `/opt/legitfy`, beside your other apps. The API joins the shared nginx network as `legitfy` and publishes no ports. Postgres stays on a private network.
-
-```sh
-cd /opt/legitfy
-cp .env.example .env        # database password and the nginx network's name
-cp app.env.example app.env  # API settings
-docker compose up -d --build
-```
-
-Add the server blocks from `deploy/nginx/legitfy.conf` to `/opt/proxy/nginx.conf`, then run `docker compose exec nginx nginx -s reload` from `/opt/proxy`.
-
-**Web (Vercel).** Set the project root to `web/` and add these variables. Vercel fills in the build, and `web/vercel.json` handles page routes.
-
-| Variable | Value |
-|---|---|
-| `VITE_API_URL` | `https://api.legitfy.dev` |
-| `VITE_CHAIN_ID` | `677`, or `968` for testnet |
-| `VITE_RPC_URL` | `https://rpc.botchain.ai` |
-| `VITE_REGISTRY_ADDRESS` | The deployed registry |
-| `VITE_SUPPORT_EMAIL` | `support@legitfy.dev` |
-| `VITE_CONTACT_EMAIL` | Optional |
-
-`WEB_ORIGIN` in `app.env` must match the site's address exactly, or the browser will block its calls to the API. Vercel preview URLs won't work against it.
-
-Before real documents go in:
-
-- Back up the database with `pg_dump` and copy the `legitfy-files` volume. Keep `FILE_MASTER_KEY` somewhere separate. Without the key, stored files can't be recovered, and losing the volume loses them. Public records on-chain aren't affected.
-- Run one API container. Uploaded files, rate limits and background jobs all assume a single instance, so scaling past that needs object storage first.
-
-## Languages
-
-The web app ships in English, Kiswahili and Simplified Chinese. English is the source in `web/src/locales/en.ts`, and `sw.ts` and `zh.ts` must match it key for key. API messages stay in English and are translated in `web/src/locales/server.ts`. `npm test` in `web/` fails if a key, a placeholder or an API message is missing.
-
-## Rules that keep this trustworthy
-
-- The registry decides authenticity. The agent never answers; only staff can.
-- The agent reads a document only if the institution opted in and the requester consented.
-- Public checks hash the file in the browser. The file is never uploaded.
-- A network or institution appears publicly only when it's real: a registry must answer, and listing is opt-in.
-- No personal data on-chain.
-- Never commit a secret. Anything prefixed `VITE_` ships to the browser.
+To run or deploy Legitfy, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
