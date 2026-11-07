@@ -11,11 +11,10 @@ import { canWrite, registerInstitution } from "../../lib/wallet";
 interface Application {
   id: string; institution_name: string; registration_number: string; institution_type: string; country: string; city: string;
   website: string; official_email: string; phone: string; applicant_name: string; applicant_position: string; applicant_email: string;
-  signatory_name: string; signatory_title: string; wallet: string; status: string; mandate_type: string | null;
+  signatory_name: string; signatory_title: string; wallet: string; status: string; mandate_type: string | null; identity_document: string | null;
   review_reason: string | null; on_chain: boolean;
 }
 type Kind = "registration" | "mandate";
-const CHECKS = [1, 2, 3, 4];
 const id = String(useRoute().params.id);
 const a = ref<Application | null>(null);
 const error = ref("");
@@ -24,7 +23,12 @@ const reason = ref("");
 const urls = reactive<Partial<Record<Kind, string>>>({});
 const ticked = ref<number[]>([]);
 const open = computed(() => a.value?.status === "under_review" || a.value?.status === "awaiting_mandate");
-const ready = computed(() => ticked.value.length === CHECKS.length && a.value?.status === "under_review");
+/** Applications from before IDs were required have none to check. */
+const checks = computed(() => (a.value?.identity_document ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]));
+/** Rejecting erases the files as well as the personal details. */
+const kinds = computed<Kind[]>(() => (a.value?.status === "rejected" ? [] : ["registration", "mandate"]));
+const identityNumber = ref("");
+const ready = computed(() => ticked.value.length === checks.value.length && a.value?.status === "under_review");
 
 async function load() {
   a.value = await api(`/platform/applications/${id}`);
@@ -44,6 +48,9 @@ async function attempt(work: () => Promise<unknown>) {
     busy.value = false;
   }
 }
+const showIdentity = () => attempt(async () => {
+  identityNumber.value = (await api<{ number: string }>(`/platform/applications/${id}/identity`)).number;
+});
 const view = (kind: Kind) => attempt(async () => {
   urls[kind] = URL.createObjectURL(await api<Blob>(`/platform/applications/${id}/files/${kind}`));
 });
@@ -66,18 +73,24 @@ const reject = () => attempt(() => api(`/platform/applications/${id}/reject`, { 
         <DetailField :label="t('apply.number')" :value="a.registration_number" />
         <DetailField :label="t('apply.type')" :value="t(`applications.types.${a.institution_type}`)" />
         <DetailField :label="t('platform.location')" :value="`${a.city}, ${a.country}`" />
-        <DetailField :label="t('apply.email')"><a class="link" :href="`mailto:${a.official_email}`">{{ a.official_email }}</a></DetailField>
-        <DetailField :label="t('apply.phone')" :value="a.phone" />
+        <DetailField v-if="a.official_email" :label="t('apply.email')"><a class="link" :href="`mailto:${a.official_email}`">{{ a.official_email }}</a></DetailField>
+        <DetailField v-if="a.phone" :label="t('apply.phone')" :value="a.phone" />
         <DetailField v-if="a.website" class="sm:col-span-2" :label="t('apply.website')" :value="a.website" />
-        <DetailField :label="t('applications.applicant')" :value="`${a.applicant_name}, ${a.applicant_position}`" />
-        <DetailField :label="t('apply.applicantEmail')"><a class="link" :href="`mailto:${a.applicant_email}`">{{ a.applicant_email }}</a></DetailField>
-        <DetailField :label="t('applications.signatory')" :value="`${a.signatory_name}, ${a.signatory_title}`" />
-        <DetailField class="sm:col-span-2" :label="t('platform.adminWallet')"><span class="hash break-all">{{ a.wallet }}</span></DetailField>
+        <DetailField v-if="a.applicant_name" :label="t('applications.applicant')" :value="`${a.applicant_name}, ${a.applicant_position}`" />
+        <DetailField v-if="a.applicant_email" :label="t('apply.applicantEmail')"><a class="link" :href="`mailto:${a.applicant_email}`">{{ a.applicant_email }}</a></DetailField>
+        <DetailField v-if="a.identity_document" :label="t('apply.identityDocument')" :value="t(`applications.ids.${a.identity_document}`)" />
+        <DetailField v-if="a.identity_document" :label="t('apply.identityNumber')">
+          <span v-if="identityNumber" class="hash">{{ identityNumber }}</span>
+          <button v-else class="btn btn-quiet" :disabled="busy" @click="showIdentity">{{ t("applications.showIdentity") }}</button>
+        </DetailField>
+        <DetailField v-if="a.signatory_name" :label="t('applications.signatory')" :value="`${a.signatory_name}, ${a.signatory_title}`" />
+        <DetailField v-if="a.wallet" class="sm:col-span-2" :label="t('platform.adminWallet')"><span class="hash break-all">{{ a.wallet }}</span></DetailField>
       </dl>
-      <div class="panel flex flex-wrap gap-3 p-5">
-        <template v-for="kind in (['registration', 'mandate'] as const)" :key="kind">
+      <p v-if="a.status === 'rejected'" class="panel p-5 text-ink-soft">{{ t("applications.erased") }}</p>
+      <div v-else class="panel flex flex-wrap gap-3 p-5">
+        <template v-for="kind in kinds" :key="kind">
           <a v-if="urls[kind]" class="btn btn-quiet" :href="urls[kind]" target="_blank" rel="noopener">{{ t(`applications.open.${kind}`) }}</a>
-          <button v-else-if="kind === 'registration' || a.mandate_type" class="btn btn-quiet" :disabled="busy" @click="view(kind)">{{ t(`applications.load.${kind}`) }}</button>
+          <button v-else-if="kind !== 'mandate' || a.mandate_type" class="btn btn-quiet" :disabled="busy" @click="view(kind)">{{ t(`applications.load.${kind}`) }}</button>
           <p v-else class="self-center text-ink-soft">{{ t("applications.noLetter") }}</p>
         </template>
       </div>
@@ -86,7 +99,7 @@ const reject = () => attempt(() => api(`/platform/applications/${id}/reject`, { 
     <div v-if="open" class="space-y-4">
       <form class="panel space-y-3 p-5" @submit.prevent="approve">
         <h2 class="text-xl">{{ t("applications.checksTitle") }}</h2>
-        <label v-for="n in CHECKS" :key="n" class="flex items-start gap-2">
+        <label v-for="n in checks" :key="n" class="flex items-start gap-2">
           <input v-model="ticked" type="checkbox" :value="n" class="mt-1 size-4 accent-stamp" />
           <span>{{ t(`applications.check${n}`) }}</span>
         </label>
@@ -95,6 +108,7 @@ const reject = () => attempt(() => api(`/platform/applications/${id}/reject`, { 
       </form>
       <form class="panel space-y-3 p-5" @submit.prevent="reject">
         <label class="block">{{ t("applications.rejectReason") }}<textarea v-model="reason" class="field mt-1" rows="3" required minlength="3" maxlength="1000"></textarea></label>
+        <p class="text-sm text-ink-soft">{{ t("applications.rejectNote") }}</p>
         <button class="btn btn-quiet" :disabled="busy">{{ t("applications.reject") }}</button>
       </form>
     </div>

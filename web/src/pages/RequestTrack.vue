@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
+import TrackingLink from "../components/TrackingLink.vue";
 import { api } from "../lib/api";
 import { dateLocale, t } from "../lib/i18n";
 
@@ -11,7 +12,6 @@ interface Track {
 const token = String(useRoute().params.token);
 const r = ref<Track | null>(null);
 const error = ref("");
-const link = location.href;
 onMounted(async () => {
   try {
     r.value = await api(`/requests/track/${token}`);
@@ -31,6 +31,7 @@ const date = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { dateS
   <section class="mx-auto max-w-2xl px-6 py-12">
     <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
     <template v-else-if="r">
+      <TrackingLink class="mb-10" :body="t('tracking.requestBody')" :sent="t('tracking.requestSent', { institution: r.institution })" />
       <h1 class="text-5xl">{{ r.subject }}</h1>
       <p class="mt-2 text-ink-soft">{{ t("track.sent", { institution: r.institution, date: date(r.submittedAt) }) }}</p>
       <div v-if="outcome" class="mt-8">
@@ -43,7 +44,6 @@ const date = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { dateS
         <h2 class="text-3xl">{{ t("track.waiting", { institution: r.institution }) }}</h2>
         <p class="mt-2 max-w-prose text-ink-soft">{{ r.status === "in_review" ? t("track.inReview") : t("track.queued") }}</p>
       </div>
-      <p class="mt-10 glass p-5">{{ t("track.save") }}<br /><span class="hash">{{ link }}</span></p>
     </template>
     <p v-else>{{ t("track.loading") }}</p>
   </section>

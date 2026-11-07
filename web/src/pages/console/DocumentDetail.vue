@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
-import { Eye, Share2, UploadCloud } from "lucide-vue-next";
+import { Download, Eye, Share2, UploadCloud } from "lucide-vue-next";
 import DetailField from "../../components/console/DetailField.vue";
 import PageHead from "../../components/console/PageHead.vue";
 import Fingerprint from "../../components/Fingerprint.vue";
@@ -13,7 +13,7 @@ import type { Hex } from "viem";
 
 interface Share { id: string; recipient: string; comment: string; shared_by: string; expires_at: string; revoked_at: string | null; created_at: string }
 interface Doc {
-  id: string; owner_name: string; title: string; description: string; file_name: string;
+  id: string; code: string | null; sealed: boolean; owner_name: string; title: string; description: string; file_name: string;
   file_sha256: string; created_at: string; status: string; shares: Share[];
 }
 const id = String(useRoute().params.id);
@@ -46,6 +46,14 @@ async function attempt(work: () => Promise<unknown>) {
   }
 }
 const open = () => attempt(async () => (fileUrl.value = URL.createObjectURL(await api<Blob>(`/credentials/${id}/file`))));
+const download = () => attempt(async () => {
+  const url = URL.createObjectURL(await api<Blob>(`/credentials/${id}/file`));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = doc.value!.sealed ? `${doc.value!.file_name.replace(/\.pdf$/i, "")}-stamped.pdf` : doc.value!.file_name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+});
 async function publish() {
   publishing.value = true;
   await attempt(async () => {
@@ -88,7 +96,7 @@ const stamp = (d: string) => new Date(d).toLocaleString(dateLocale(), { dateStyl
         <DetailField v-if="doc.description" class="sm:col-span-2" :label="t('document.description')" :value="doc.description" />
         <DetailField :label="t('document.record')" :value="statusLabel(doc.status)" />
         <DetailField :label="t('document.file')" :value="doc.file_name" />
-        <DetailField class="sm:col-span-2" :label="t('document.id')"><span class="hash">{{ doc.id }}</span></DetailField>
+        <DetailField class="sm:col-span-2" :label="t('document.id')"><span class="hash" :title="doc.id">{{ doc.code ?? doc.id }}</span></DetailField>
         <DetailField class="sm:col-span-2" :label="t('document.fingerprint')"><span class="hash">{{ hash }}</span></DetailField>
       </dl>
       <Fingerprint :hash="hash" class="mx-auto size-36 text-harbour" />
@@ -96,9 +104,11 @@ const stamp = (d: string) => new Date(d).toLocaleString(dateLocale(), { dateStyl
         <h2 class="text-sm font-semibold">{{ t("document.actions") }}</h2>
         <div class="mt-2 flex flex-wrap gap-2">
           <button class="btn btn-quiet" @click="open"><Eye class="size-4" aria-hidden="true" />{{ t("document.open") }}</button>
+          <button class="btn" @click="download"><Download class="size-4" aria-hidden="true" />{{ t(doc.sealed ? "document.download" : "document.downloadPlain") }}</button>
           <button class="btn" @click="startShare"><Share2 class="size-4" aria-hidden="true" />{{ t("document.share") }}</button>
           <button v-if="doc.status === 'pending' && canWrite()" class="btn" :disabled="publishing" @click="publish"><UploadCloud class="size-4" aria-hidden="true" />{{ publishing ? t("common.waitingWallet") : t("document.publish") }}</button>
         </div>
+        <p class="mt-3 max-w-prose text-sm text-ink-soft">{{ t(doc.sealed ? "document.stampedNote" : "document.unsealedNote") }}</p>
         <p v-if="doc.status === 'pending'" class="mt-3 max-w-prose text-sm text-ink-soft">{{ canWrite() ? t("document.pending") : t("errors.smartAccount") }}</p>
       </div>
       <iframe v-if="fileUrl" :src="fileUrl" :title="doc.file_name" class="h-[36rem] w-full rounded border border-[#cfd8de] lg:col-span-2"></iframe>

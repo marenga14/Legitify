@@ -1,5 +1,6 @@
 import { createPublicClient, http, isHex, parseAbi, type Address, type Hex } from "viem";
 import { chain, explorerUrl, networkName, otherNetworks, registryAddress } from "./config";
+import { canonicalCode, credentialIdFor } from "./certificateCode";
 import { t } from "./i18n";
 
 const abi = parseAbi([
@@ -83,6 +84,13 @@ async function search(functionName: "verifyByHash" | "verifyById", value: Hex): 
 export const verifyByHash = (hash: Hex) => search("verifyByHash", hash);
 export const verifyById = (id: Hex) => search("verifyById", id);
 export const isCredentialId = (v: string): v is Hex => isHex(v) && v.length === 66;
+/** Takes a printed code or a full on-chain ID, which older links still use. */
+export function resolveCredential(input: string): { id: Hex; code: string | null } | null {
+  const value = input.trim();
+  if (isCredentialId(value)) return { id: value, code: null };
+  const code = canonicalCode(value);
+  return code ? { id: credentialIdFor(code), code } : null;
+}
 
 export async function registryStats() {
   const [institutions, credentials] = await Promise.all([

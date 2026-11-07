@@ -9,19 +9,21 @@ import { shortId } from "../lib/certificate";
 import { t } from "../lib/i18n";
 import { connectWallet, hasWallet, signMessage } from "../lib/wallet";
 
+const ID_TYPES = ["national_id", "passport", "driving_licence", "voter_id"];
 const TYPES = ["university", "college", "school", "professional_body", "government", "other"];
 const router = useRouter();
 const form = reactive({
   institutionName: "", registrationNumber: "", institutionType: "", country: "", city: "", website: "", officialEmail: "", phone: "",
-  applicantName: "", applicantPosition: "", applicantEmail: "", signatoryName: "", signatoryTitle: "",
+  applicantName: "", applicantPosition: "", applicantEmail: "", signatoryName: "", signatoryTitle: "", identityDocument: "", identityNumber: "",
 });
 const file = ref<File>();
+const identityConsent = ref(false);
 const wallet = ref<Address | "">("");
 const confirmed = ref(false);
 const error = ref("");
 const walletError = ref("");
 const busy = ref(false);
-const needs = computed(() => [1, 2, 3, 4].map((n) => t(`apply.need${n}`)));
+const needs = computed(() => [1, 2, 3, 4, 5].map((n) => t(`apply.need${n}`)));
 
 async function connect() {
   walletError.value = "";
@@ -45,11 +47,12 @@ async function submit() {
     const body = new FormData();
     for (const [k, v] of Object.entries(form)) body.set(k, v);
     body.set("confirmed", String(confirmed.value));
+    body.set("identityConsent", String(identityConsent.value));
     body.set("nonce", nonce);
     body.set("signature", signature);
     body.set("file", file.value);
     const { trackingToken } = await api<{ trackingToken: string }>("/applications", { method: "POST", body });
-    router.push(`/apply/${trackingToken}`);
+    router.push({ path: `/apply/${trackingToken}`, query: { sent: "1" } });
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -95,6 +98,22 @@ async function submit() {
         <label class="sm:col-span-2">{{ t("apply.applicantEmail") }}<input v-model="form.applicantEmail" type="email" class="field mt-1" required maxlength="254" /><span class="mt-1 block text-sm text-ink-soft">{{ t("apply.applicantEmailHint") }}</span></label>
         <label>{{ t("apply.signatoryName") }}<input v-model="form.signatoryName" class="field mt-1" required minlength="2" maxlength="120" /></label>
         <label>{{ t("apply.signatoryTitle") }}<input v-model="form.signatoryTitle" class="field mt-1" required minlength="2" maxlength="120" :placeholder="t('apply.signatoryHint')" /></label>
+      </fieldset>
+
+      <fieldset class="glass grid gap-5 p-6 sm:grid-cols-2">
+        <legend class="px-2 text-xl font-semibold">{{ t("apply.identitySection") }}</legend>
+        <p class="text-ink-soft sm:col-span-2">{{ t("apply.identityWhy") }}</p>
+        <label>{{ t("apply.identityDocument") }}
+          <select v-model="form.identityDocument" class="field mt-1" required>
+            <option value="" disabled>{{ t("apply.chooseIdentity") }}</option>
+            <option v-for="type in ID_TYPES" :key="type" :value="type">{{ t(`applications.ids.${type}`) }}</option>
+          </select>
+        </label>
+        <label>{{ t("apply.identityNumber") }}<input v-model="form.identityNumber" class="field mt-1" required minlength="4" maxlength="40" pattern="[A-Za-z0-9 /\-]+" autocomplete="off" spellcheck="false" /></label>
+        <label class="flex items-start gap-3 sm:col-span-2">
+          <input v-model="identityConsent" type="checkbox" class="mt-1.5 size-4 accent-stamp" required />
+          <span>{{ t("apply.identityConsent") }}</span>
+        </label>
       </fieldset>
 
       <fieldset class="glass p-6">

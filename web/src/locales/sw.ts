@@ -2,11 +2,14 @@ import type en from "./en";
 
 const sw: typeof en = {
   titles: {
+    bulkCheck: "Kagua hati nyingi",
+    sealEditor: "Muhuri wa cheti",
+    institutionProfile: "Wasifu wa taasisi", platformChanges: "Maombi ya mabadiliko",
     why: "Kwa nini Legitfy", how: "Jinsi inavyofanya kazi", security: "Faragha na usalama",
     apply: "Omba kujiunga", applyTrack: "Maombi yako", platformApplications: "Maombi",
     home: "Legitfy", institutions: "Kwa taasisi", verifiers: "Kwa waajiri na wahakiki", developers: "Kwa wasanidi programu",
     verify: "Hakiki hati", credential: "Rekodi ya cheti", request: "Uliza taasisi", track: "Ombi lako",
-    shared: "Cheti kilichoshirikiwa", signIn: "Kuingia kwa wafanyakazi", dashboard: "Dashibodi", inbox: "Kikasha", requestDetail: "Ombi",
+    shared: "Cheti kilichoshirikiwa", signIn: "Kuingia kwa wafanyakazi", dashboard: "Dashibodi", inbox: "Maombi", requestDetail: "Ombi",
     documents: "Hati", documentDetail: "Maelezo ya hati", operators: "Waendeshaji", settings: "Mipangilio",
     platformInstitutions: "Taasisi", notFound: "Ukurasa haukupatikana",
   },
@@ -64,7 +67,7 @@ const sw: typeof en = {
     hashing: "Inakokotoa alama ya kidole", reading: "Inasoma rekodi ya umma", notChecked: "Haijahakikiwa", notCheckedBody: "Alama imekokotolewa, rekodi haipatikani",
     ready: "Tayari kuhakiki", readyBody: "Weka faili au chagua moja", onRecord: "Ipo kwenye rekodi ya umma", issuedBy: "Imetolewa na {institution}",
     revoked: "Imefutwa", revokedBy: "Na {institution}", replaced: "Imebadilishwa", replacedBody: "Kuna toleo jipya zaidi", issuerSuspended: "Mtoaji amesimamishwa",
-    noRecord: "Hakuna rekodi iliyopatikana", noRecordBody: "Hiyo haimaanishi ni ya kughushi",
+    codeLabel: "Au weka kitambulisho cha cheti kilichochapishwa kwenye hati", codeCheck: "Kagua kitambulisho", codeBad: "Kitambulisho hicho hakionekani sahihi. Linganisha na hati.", noRecord: "Hakuna rekodi iliyopatikana", noRecordBody: "Hiyo haimaanishi ni ya kughushi",
   },
   verdict: {
     onNetwork: "Kwenye {network}",
@@ -72,7 +75,7 @@ const sw: typeof en = {
     revokedTitle: "Cheti hiki kimefutwa", revokedBody: "{institution} ilikifuta tarehe {date}. Sababu iliyotolewa: {reason}.",
     replacedTitle: "Kuna toleo jipya zaidi", replacedBody: "{institution} ilibadilisha cheti hiki na kilichosahihishwa. Muombe mmiliki toleo la sasa.",
     suspendedTitle: "Imetolewa na {institution}, ambayo imesimamishwa", suspendedBody: "Rekodi hii ilitolewa tarehe {date}, lakini {institution} imesimamishwa kwa sasa kwenye Legitfy. Thibitisha moja kwa moja na taasisi.",
-    noneTitle: "Hakuna rekodi iliyopatikana", noneBody: "Faili hili hasa halikutolewa kupitia Legitfy. Hiyo haimaanishi ni la kughushi: hati za zamani na nakala zilizohifadhiwa upya hazitalingana. Unaweza kuiomba taasisi ilithibitishe.",
+    noneTitle: "Hakuna rekodi iliyopatikana", noneBody: "Faili hili hasa halikutolewa kupitia Legitfy. Hiyo haimaanishi ni la kughushi: hati za zamani, nakala zilizohifadhiwa upya na faili asili lisilo na msimbo wa QR hazitalingana. Kama hati ina kitambulisho cha cheti, kikague hicho, au uiombe taasisi ilithibitishe.",
     ask: "Uliza taasisi", current: "Tazama toleo la sasa", record: "Tazama rekodi ya umma", technical: "Maelezo ya kiufundi", fingerprint: "Alama ya kidole ya faili", credentialId: "Kitambulisho cha cheti",
   },
   credential: { heading: "Rekodi ya cheti", reading: "Inasoma rekodi ya umma" },
@@ -106,14 +109,13 @@ const sw: typeof en = {
   },
   track: {
     sent: "Imetumwa kwa {institution} tarehe {date}", confirmed: "Imethibitishwa", notConfirmed: "Haijathibitishwa", needsInfo: "Taarifa zaidi zinahitajika", answered: "{institution} ilijibu tarehe {date}.",
-    receipt: "Risiti", waiting: "Inasubiri {institution}", inReview: "Wafanyakazi wanalipitia.", queued: "Liko kwenye foleni yao.",
-    save: "Hifadhi kiungo hiki ili urudi kuangalia. Ndiyo njia pekee ya kufikia ombi hili.", loading: "Inapakia ombi lako",
+    receipt: "Risiti", waiting: "Inasubiri {institution}", inReview: "Wafanyakazi wanalipitia.", queued: "Liko kwenye foleni yao.", loading: "Inapakia ombi lako",
   },
   apply: {
     title: "Omba kutoa vyeti kupitia Legitfy", sub: "Tuambie taasisi yako ni ipi na nani ataendesha akaunti yake. Tunakagua kila ombi kabla ya chochote kuingia kwenye rekodi ya umma.",
     eyebrow: "Usajili wa taasisi",
     needTitle: "Utakachohitaji", need1: "Hati ya usajili au ithibati ya taasisi yako", need2: "Mtu ambaye taasisi yako imemteua kuendesha akaunti yake",
-    need3: "Barua iliyosainiwa na mkurugenzi au mkuu wako na kugongwa muhuri wa taasisi. Tutakuandalia baada ya hatua hii, hivyo unaweza kurudi baadaye", need4: "Akaunti ya blockchain kwa mtu aliyeteuliwa. Tutakuonyesha jinsi ya kuiandaa",
+    need3: "Barua iliyosainiwa na mkurugenzi au mkuu wako na kugongwa muhuri wa taasisi. Tutakuandalia baada ya hatua hii, hivyo unaweza kurudi baadaye", need4: "Akaunti ya blockchain kwa mtu aliyeteuliwa. Tutakuonyesha jinsi ya kuiandaa", need5: "Aina na namba ya kitambulisho cha serikali cha mtu anayeomba", identitySection: "Utambulisho wako", identityWhy: "Tunakagua namba ya kitambulisho chako kwa mamlaka iliyokitoa, ili kuthibitisha nani anaomba kwa niaba ya taasisi hii. Inahifadhiwa kwa usimbaji fiche, wakaguzi wa Legitfy pekee ndio wanaoweza kuiona, na haionekani kwenye rekodi ya umma. Ombi lisipoidhinishwa, tunaifuta.", identityDocument: "Aina ya kitambulisho", chooseIdentity: "Chagua kitambulisho", identityNumber: "Namba ya kitambulisho", identityConsent: "Ninakubali Legitfy ikague namba ya kitambulisho changu kwa mamlaka iliyokitoa kwa ombi hili.",
     institutionSection: "Taasisi yako", name: "Jina rasmi", nameHint: "Liandike kama lilivyo kwenye hati yako ya usajili. Haliwezi kubadilishwa likishaingia kwenye rekodi ya umma.", number: "Namba ya usajili au ithibati", type: "Aina ya taasisi", chooseType: "Chagua aina",
     country: "Nchi", city: "Jiji", email: "Barua pepe rasmi", phone: "Simu", website: "Tovuti (si lazima)", registrationFile: "Hati ya usajili au ithibati", fileHint: "PDF, JPEG au PNG, hadi MB 15.",
     applicantEmail: "Barua pepe rasmi yake", applicantEmailHint: "Tumia anwani ya ofisini, si ya binafsi.",
@@ -133,19 +135,21 @@ const sw: typeof en = {
   },
   track2: {
     reference: "Kumbukumbu {reference}", reviewing: "Tumepokea barua yako na tunakagua maombi yako.", nextTitle: "Inayofuata: barua yako ya idhini", step1: "Pakua barua. Tumeijaza kutoka kwenye maombi yako.", step2: "Ichapishe na {name}, {title}, asaini na kuweka tarehe.", step3: "Igonge muhuri rasmi wa taasisi yako.", step4: "Skani au piga picha ukurasa mzima, kisha uipakie hapa chini.",
-    download: "Pakua barua", uploadTitle: "Pakia barua iliyosainiwa", replace: "Badilisha barua", file: "Barua iliyosainiwa na kugongwa muhuri", upload: "Pakia barua", approved: "Taasisi yako ipo kwenye rekodi ya umma. Ingia kwa akaunti uliyoombea ili kuongeza wafanyakazi na kuchapisha vyeti.", signIn: "Nenda kuingia",
-    reason: "Sababu iliyotolewa", again: "Omba tena", save: "Hifadhi kiungo hiki. Bado hatutumi barua pepe, hivyo ndiyo njia pekee ya kurudi kwenye maombi haya.",
+    downloadPlain: "Pakua faili", unsealedNote: "Cheti hiki hakina muhuri. Mpe mmiliki faili hili hasa: nakala iliyohaririwa, kuhifadhiwa upya au kuchapishwa haitathibitishika.", download: "Pakua barua", uploadTitle: "Pakia barua iliyosainiwa", replace: "Badilisha barua", file: "Barua iliyosainiwa na kugongwa muhuri", upload: "Pakia barua", approved: "Taasisi yako ipo kwenye rekodi ya umma. Ingia kwa akaunti uliyoombea ili kuongeza wafanyakazi na kuchapisha vyeti.", signIn: "Nenda kuingia",
+    reason: "Sababu iliyotolewa", again: "Omba tena"
   },
   applications: {
     title: "Maombi", empty: "Bado hakuna maombi.", applicant: "Mwombaji", received: "Yalipokelewa", signatory: "Msaini", noLetter: "Bado hakuna barua.",
     status: { awaiting_mandate: "Inasubiri barua iliyosainiwa", under_review: "Inakaguliwa", approved: "Yamekubaliwa", rejected: "Hayakukubaliwa" },
     types: { university: "Chuo kikuu", college: "Chuo", school: "Shule", professional_body: "Bodi ya kitaaluma", government: "Taasisi ya serikali", other: "Nyingine" },
-    load: { registration: "Fungua hati ya usajili", mandate: "Fungua barua iliyosainiwa" }, open: { registration: "Tazama hati ya usajili", mandate: "Tazama barua iliyosainiwa" },
-    checksTitle: "Kabla ya kukubali", check1: "Nimethibitisha usajili kwa mdhibiti au rejista rasmi.", check2: "Nimewasiliana na taasisi kupitia njia rasmi niliyoipata mwenyewe.", check3: "Barua imesainiwa na mkuu aliyetajwa na ina muhuri wa taasisi.", check4: "Akaunti iliyo kwenye barua inalingana kabisa na iliyo hapo juu, herufi kwa herufi.",
+    ids: { national_id: "Kitambulisho cha Taifa", passport: "Pasipoti", driving_licence: "Leseni ya udereva", voter_id: "Kadi ya mpiga kura" },
+    showIdentity: "Onyesha namba ya kitambulisho", erased: "Ombi hili halikuidhinishwa, kwa hiyo taarifa zake binafsi na faili zimefutwa.", rejectNote: "Hii inafuta kabisa taarifa binafsi za mwombaji, namba ya kitambulisho na faili zilizopakiwa. Usiweke majina au taarifa za kitambulisho kwenye sababu yako.", load: { registration: "Fungua hati ya usajili", mandate: "Fungua barua iliyosainiwa" }, open: { registration: "Tazama hati ya usajili", mandate: "Tazama barua iliyosainiwa" },
+    checksTitle: "Kabla ya kukubali", check5: "Nimethibitisha namba na aina ya kitambulisho kwa mamlaka iliyokitoa, na jina lake linalingana na mwombaji kwenye fomu hii.", check1: "Nimethibitisha usajili kwa mdhibiti au rejista rasmi.", check2: "Nimewasiliana na taasisi kupitia njia rasmi niliyoipata mwenyewe.", check3: "Barua imesainiwa na mkuu aliyetajwa na ina muhuri wa taasisi.", check4: "Akaunti iliyo kwenye barua inalingana kabisa na iliyo hapo juu, herufi kwa herufi.",
     permanent: "Kukubali kunasajili jina na akaunti hii kwenye rekodi ya umma kutoka akaunti yako. Jina haliwezi kubadilishwa wala kufutwa baadaye.", approve: "Kubali na sajili", rejectReason: "Kwa nini hayakukubaliwa? Mwombaji ataona maelezo haya.", reject: "Kataa maombi",
   },
   theme: { toLight: "Badili kwenda mandhari nyeupe", toDark: "Badili kwenda mandhari nyeusi" },
   networks: { title: "Mitandao inayotumika", sub: "Ukaguzi wa umma hutafuta kwenye kila mtandao ulioorodheshwa hapa." },
+  tracking: { title: "Hiki ndicho kiungo chako cha ufuatiliaji", requestBody: "Ndiyo njia pekee ya kurudi kwenye ombi hili na jibu lake. Kinakili na ukihifadhi mahali salama, kwa sababu bado hatukitumi kwa barua pepe.", applicationBody: "Ndiyo njia pekee ya kurudi kwenye maombi haya, na utakihitaji kupakia barua iliyosainiwa. Kinakili na ukihifadhi mahali salama, kwa sababu bado hatukitumi kwa barua pepe.", requestSent: "Ombi lako limetumwa kwa {institution}.", applicationSent: "Maombi yako yamepokelewa.", private: "Kilinde kama nenosiri: yeyote mwenye kiungo hiki anaweza kufungua ukurasa huu.", copyFailed: "Kivinjari chako kimezuia kunakili. Chagua kiungo hapo juu na ukinakili kwa mkono." },
   showcase: { title: "Taasisi zilizo kwenye Legitfy", sub: "Taasisi zilizosajiliwa ambazo zimechagua kuonekana hapa." },
   why: {
     title: "Kuhakiki hati hakupaswi kutegemea unamfahamu nani", sub: "Vyeti huamua nani anaajiriwa, anapandishwa cheo au anapokelewa chuoni. Njia ya kuvihakiki haijaenda na wakati.", problem: "Tatizo", solution: "Legitfy inafanya nini",
@@ -179,14 +183,16 @@ const sw: typeof en = {
   },
   console: {
     label: "Dashibodi", home: "Mwanzo wa dashibodi ya Legitfy", closeMenu: "Funga menyu", openMenu: "Fungua menyu", signOut: "Toka", storage: "Hifadhi iliyosimbwa iliyotumika", platform: "Usimamizi wa jukwaa",
-    nav: { applications: "Maombi", dashboard: "Dashibodi", inbox: "Kikasha", operators: "Waendeshaji", documents: "Hati", settings: "Mipangilio", institutions: "Taasisi" },
+    nav: { seal: "Muhuri wa cheti", profile: "Wasifu wa taasisi", changes: "Maombi ya mabadiliko", applications: "Maombi", dashboard: "Dashibodi", inbox: "Maombi", operators: "Waendeshaji", documents: "Hati", settings: "Mipangilio", institutions: "Taasisi" },
   },
   dashboard: {
     title: "Dashibodi", operators: "Waendeshaji", documents: "Hati", openRequests: "Maombi yaliyo wazi", answered: "Yaliyojibiwa",
     certificatesChart: "Vyeti vilivyoundwa", requestsChart: "Maombi yaliyopokelewa", certificatesNoun: "vyeti", requestsNoun: "maombi", empty: "Hakuna kitu katika miezi sita iliyopita.", month: "Mwezi",
   },
   inbox: {
-    title: "Kikasha", levelSuffix: "Ngazi ya {level}", empty: "Hakuna kinachosubiri. Maombi mapya yataonekana hapa mtu akituma.",
+    title: "Maombi", noneResolved: "Bado hakuna maombi yaliyokamilishwa.", outcome: "Matokeo", resolvedBy: "Yamekamilishwa na", resolvedAt: "Yamekamilika", onChain: "Kwenye blockchain", chainNote: "Majibu yanabaki ya faragha na hayaandikwi kwenye blockchain. Mara moja kwa siku, alama ya kumbukumbu yote ya shughuli huandikwa, na hiyo inathibitisha historia hii haijabadilishwa tangu wakati huo.",
+    tabs: { open: "Yanayoendelea", resolved: "Yaliyokamilika" },
+    chain: { anchored: "Imerekodiwa {date}", pending: "Inasubiri rekodi ya kila siku inayofuata", off: "Haijarekodiwa" }, levelSuffix: "Ngazi ya {level}", empty: "Hakuna kinachosubiri. Maombi mapya yataonekana hapa mtu akituma.",
     urgentOne: "{n} linahitaji kushughulikiwa kwanza", urgentMany: "{n} yanahitaji kushughulikiwa kwanza", requests: "Maombi", no: "Na.", subject: "Mada", from: "Kutoka", due: "Mwisho", level: "Ngazi",
     overdue: "Imechelewa saa {n}", dueHours: "Mwisho baada ya saa {n}", dueDays: "Mwisho baada ya siku {n}", inReview: "inapitiwa", viewItem: "Tazama {name}",
   },
@@ -211,12 +217,13 @@ const sw: typeof en = {
   documents: {
     title: "Hati", create: "Unda cheti", empty: "Bado hakuna vyeti. Unda kimoja ili kuchapisha alama yake ya kidole kwenye rekodi ya umma.", table: "Vyeti",
     id: "Kitambulisho cha cheti", owner: "Mmiliki wa cheti", created: "Tarehe ya kuundwa", purpose: "Madhumuni", viewItem: "Tazama {owner}, {title}", purposeHint: "Shahada ya Sayansi ya Kompyuta", description: "Maelezo",
-    file: "Cheti (PDF, hadi MB 15)", stampNote: "Msimbo wa QR unaongezwa kwenye ukurasa wa mwisho. Nakala yenye muhuri ndiyo inayothibitishika, kwa hiyo mpe mmiliki nakala hiyo.",
+    addSeal: "Ongeza muhuri wetu", noSealNote: "Bila muhuri, faili linabaki kama lilivyopakiwa. Faili hilo hasa ndilo pekee linalothibitishika, na nakala zilizochapishwa haziwezi kukaguliwa kwa msimbo wa QR.",
+    file: "Cheti (PDF, hadi MB 15)", stampNote: "Muhuri wako na kitambulisho cha cheti vinaongezwa kwenye ukurasa wa mwisho. Nakala yenye muhuri ndiyo inayothibitishika, kwa hiyo mpe mmiliki nakala hiyo.",
     stamping: "Inaweka msimbo wa QR", saving: "Inahifadhi faili lililosimbwa",
   },
   document: {
     title: "Maelezo ya hati", back: "Rudi kwenye hati", name: "Jina la hati", created: "Tarehe ya kuundwa", description: "Maelezo", record: "Rekodi ya umma", file: "Faili", id: "Kitambulisho cha cheti",
-    fingerprint: "Alama ya kidole ya faili", actions: "Vitendo", open: "Fungua", share: "Shiriki", publish: "Chapisha kwenye rekodi ya umma", pending: "Cheti hiki kimehifadhiwa lakini hakipo kwenye rekodi ya umma, kwa hiyo uhakiki hautakipata bado.",
+    fingerprint: "Alama ya kidole ya faili", download: "Pakua nakala yenye muhuri", stampedNote: "Mpe mmiliki nakala hii yenye muhuri. Faili ulilopakia halina muhuri, kwa hiyo halitathibitishika.", actions: "Vitendo", open: "Fungua", share: "Shiriki", publish: "Chapisha kwenye rekodi ya umma", pending: "Cheti hiki kimehifadhiwa lakini hakipo kwenye rekodi ya umma, kwa hiyo uhakiki hautakipata bado.",
     shares: "Ushirikishaji wa hati", noShares: "Bado hakijashirikiwa. Kushiriki kunaunda kiungo kisichohitaji kuingia na unaweza kukiondoa wakati wowote.", to: "Kwa: ", from: "Kutoka: ", status: "Hali: ", expires: "Kinaisha: ", comment: "Maoni: ",
     withdraw: "Ondoa kiungo", active: "Hai", expired: "Kimeisha", withdrawn: "Kimeondolewa", linkCreated: "Kiungo kimeundwa", copyNow: "Nakili sasa. Kwa usalama hakitaonyeshwa tena.",
     copy: "Nakili kiungo", copied: "Kimenakiliwa", shareTitle: "Shiriki cheti hiki", who: "Ni cha nani?", commentLabel: "Maoni", days: "Kiungo kiishe baada ya (siku)", createLink: "Unda kiungo",
@@ -225,7 +232,28 @@ const sw: typeof en = {
     title: "Waendeshaji", no: "Na.", name: "Jina", position: "Cheo", wallet: "Akaunti", role: "Jukumu", level: "Ngazi ya mapitio", noName: "Jina halijaongezwa", levelFor: "Ngazi ya mapitio ya {name}",
     add: "Ongeza mwendeshaji", walletAddress: "Anwani ya akaunti", submit: "Ongeza mwendeshaji", roles: { admin: "Msimamizi", operator: "Mwendeshaji" },
   },
+  profile: {
+    title: "Wasifu wa taasisi", contactTitle: "Mawasiliano", contactBody: "Unaweza kusasisha haya wakati wowote.", save: "Hifadhi mawasiliano", saved: "Imehifadhiwa", registeredTitle: "Taarifa zilizosajiliwa", registeredBody: "Tulikagua taarifa hizi mlipoidhinishwa, kwa hiyo mabadiliko yanahitaji ushahidi na ukaguzi wa Legitfy.", nameLocked: "Jina hili ni la kudumu kwenye rekodi ya umma, kwa hiyo haliwezi kubadilishwa hapa. Wasiliana na msaada wa Legitfy kama si sahihi.", notRecorded: "Haijarekodiwa", waiting: "Inasubiri ukaguzi", requestChange: "Omba mabadiliko", historyTitle: "Maombi ya mabadiliko", requestTitle: "Badilisha {field}", newValue: "Thamani mpya", reason: "Kwa nini hii inabadilika?", evidence: "Hati ya ushahidi", send: "Tuma ombi",
+    fields: { registration_number: "Namba ya usajili", institution_type: "Aina ya taasisi", country: "Nchi", city: "Jiji" },
+    status: { pending: "Inasubiri ukaguzi", approved: "Imeidhinishwa", rejected: "Haijaidhinishwa" },
+  },
+  changes: {
+    title: "Maombi ya mabadiliko", empty: "Hakuna maombi ya mabadiliko yanayosubiri.", detail: "Taarifa", current: "Sasa", requested: "Iliyoombwa", loadEvidence: "Pakia hati ya ushahidi", openEvidence: "Fungua hati ya ushahidi", checkNote: "Fungua hati na uthibitishe mabadiliko kwa chanzo rasmi kabla ya kuidhinisha.", approve: "Idhinisha mabadiliko", rejectReason: "Kwa nini haijaidhinishwa? Taasisi itaona hili.", reject: "Usiidhinishe",
+  },
+  seal: {
+    needSeal: "Pakia muhuri wako ili uutumie. Hadi hapo, vyeti vinatumia kiolezo.", needEmblem: "Pakia nembo yako ili uitumie. Hadi hapo, muhuri unaonyesha herufi zako za mwanzo.", title: "Muhuri wa cheti", body: "Legitfy iliipa taasisi yako muhuri kiotomatiki ilipoidhinishwa. Badilisha chochote hapa. Tumia tu majina, nembo na michoro ambayo taasisi yako ina haki ya kutumia.", sourceTitle: "Mchoro wa muhuri", useTemplate: "Tumia kiolezo", useUpload: "Tumia muhuri wetu", uploadSeal: "Pakia muhuri wako", uploadHint: "PNG au JPEG, hadi MB 1. PNG yenye mandharinyuma angavu inaonekana vizuri zaidi.", removeSeal: "Ondoa muhuri uliopakiwa", designTitle: "Kiolezo", colour: "Rangi", wordingTitle: "Maneno", topText: "Maneno ya juu", bottomText: "Maneno ya chini", bottomHint: "Skani ili kukagua", initials: "Herufi za mwanzo (hadi 4)", automatic: "Kiotomatiki", centreTitle: "Katikati ya muhuri", centreInitials: "Herufi za mwanzo", centreEmblem: "Nembo", uploadEmblem: "Pakia nembo (PNG au JPEG, hadi MB 1)", removeEmblem: "Ondoa nembo", detailsTitle: "Maelezo ya ziada", poBox: "S.L.P. au anwani", showDate: "Onyesha tarehe ya kutolewa", placementTitle: "Msimbo wa QR na mahali", qr: "Msimbo wa QR", position: "Mahali kwenye ukurasa", arrangement: "Msimbo wa QR uende wapi", noQrNote: "Bila msimbo wa QR, nakala zilizochapishwa zinaweza kukaguliwa tu kwa kuandika kitambulisho cha cheti.", previewTitle: "Hakikisho", existingNote: "Hii inatumika kwa vyeti vipya. Vilivyopo vinabaki kama vilivyo.", save: "Hifadhi muhuri", saved: "Muhuri umehifadhiwa",
+    designs: { rosette: "Waridi", classic: "Pete za kawaida", beaded: "Shanga", milled: "Ukingo wa meno", octagon: "Pembe nane", plaque: "Bamba" },
+    colours: { violet: "Zambarau", navy: "Bluu iliyokolea", blue: "Bluu", green: "Kijani", red: "Nyekundu" },
+    qrModes: { inside: "Ndani ya muhuri", separate: "Kando na muhuri", none: "Bila msimbo wa QR" },
+    positions: { "bottom-right": "Chini kulia", "bottom-left": "Chini kushoto", "top-right": "Juu kulia", "top-left": "Juu kushoto" },
+    arrangements: { opposite: "Upande wa pili wa ukurasa", horizontal: "Karibu na muhuri (mlalo)", vertical: "Juu au chini ya muhuri (wima)" },
+  },
+  bulk: {
+    link: "Unakagua hati nyingi? Pakia orodha", title: "Kagua hati nyingi", body: "Pakia jedwali la vitambulisho vya vyeti au PDF kadhaa. Utapata jedwali lenye matokeo ya kila moja kutoka rekodi ya umma.", listTitle: "Orodha ya vitambulisho vya vyeti", listHint: "Excel (.xlsx) au CSV, hadi safu {max}. Tunatafuta safu ya kitambulisho wenyewe, na safu zako nyingine zinabaki kwenye matokeo.", filesTitle: "Faili za PDF", filesHint: "Hadi faili {max}. Tumia nakala zenye muhuri.", privacy: "Kila kitu kinafanyika kwenye kivinjari chako. Orodha na faili zako hazipakiwi popote.", progress: "Zimekaguliwa {done} kati ya {total}", download: "Pakua matokeo (Excel)", notFake: "Kukosekana kwa rekodi hakumaanishi hati ni ya kughushi: hati za zamani na nakala zilizohifadhiwa upya hazitalingana, kwa hiyo uliza taasisi. Haijakaguliwa inamaanisha rekodi ya umma haikupatikana, kwa hiyo jaribu tena.", item: "Kipengee", result: "Matokeo", issuedBy: "Imetolewa na", issued: "Tarehe ya kutolewa", network: "Mtandao", currentVersion: "Kitambulisho cha toleo la sasa", fileName: "Faili", unreadable: "Hatukuweza kusoma faili hilo. Lihifadhi kama .xlsx au .csv kisha ujaribu tena.", noRows: "Hatukupata safu zozote kwenye faili hilo.", tooManyRows: "Safu ni nyingi mno. Kikomo ni {max}.", tooManyFiles: "Faili ni nyingi mno. Kikomo ni {max}.",
+    status: { authentic: "Ipo kwenye rekodi ya umma", revoked: "Imebatilishwa", replaced: "Imebadilishwa", suspended: "Mtoaji amesimamishwa", not_found: "Hakuna rekodi iliyopatikana", invalid: "Kitambulisho si sahihi", not_checked: "Haijakaguliwa" },
+  },
   settings: {
+    currentLogo: "Nembo ya sasa", newLogo: "Nembo mpya",
     networksTitle: "Mitandao inayotumika", networksBody: "Ukaguzi wa umma hutafuta kwenye kila mtandao hapa. Mtandao unaweza kuongezwa tu baada ya rejista yako kuwekwa humo.", networkLogo: "Nembo ya mtandao (PNG au JPEG, hadi MB 1)", addNetwork: "Ongeza mtandao", removeNetwork: "Ondoa",
     listingTitle: "Kuonekana hadharani", listingBody: "Ikiwa imewashwa, jina, mahali na nembo yako vinaonekana kwenye ukurasa wa mwanzo wa Legitfy. Unaweza kuizima wakati wowote.", logo: "Nembo (PNG au JPEG, hadi MB 1)", uploadLogo: "Pakia nembo", replaceLogo: "Badilisha nembo", showListing: "Onyesha kwenye ukurasa wa mwanzo", hideListing: "Ficha kutoka ukurasa wa mwanzo",
     networkTitle: "Maelezo ya mtandao", networkBody: "Haya yanaonekana kwenye tovuti ya umma na kuiambia isome mtandao upi. Yasasishe baada ya kupeleka mfumo. Kuhifadhi hukagua kwamba RPC inafanya kazi na kwamba akaunti yako inamiliki rejista.", networkName: "Jina la mtandao", chainId: "Kitambulisho cha mnyororo", saveNetwork: "Hifadhi maelezo ya mtandao",

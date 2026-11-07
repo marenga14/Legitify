@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import ApplyHero from "../components/ApplyHero.vue";
+import TrackingLink from "../components/TrackingLink.vue";
 import { api } from "../lib/api";
 import { t } from "../lib/i18n";
 import { downloadMandate, type MandateDetails } from "../lib/mandate";
@@ -13,7 +14,6 @@ const error = ref("");
 const uploadError = ref("");
 const file = ref<File>();
 const busy = ref(false);
-const link = location.href;
 
 async function load() {
   try {
@@ -46,6 +46,7 @@ async function upload() {
   <section class="relative mx-auto max-w-2xl px-6 py-12">
     <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
     <template v-else-if="a">
+      <TrackingLink class="relative mb-10" :body="t('tracking.applicationBody')" :sent="t('tracking.applicationSent')" />
       <ApplyHero :title="a.institutionName" :sub="t('track2.reference', { reference: a.reference })" />
       <p class="relative mt-3 text-xl font-semibold">{{ t(`applications.status.${a.status}`) }}</p>
 
@@ -83,7 +84,6 @@ async function upload() {
         <RouterLink to="/apply" class="btn mt-5">{{ t("track2.again") }}</RouterLink>
       </template>
 
-      <p class="mt-10 glass p-5">{{ t("track2.save") }}<br /><span class="hash break-all">{{ link }}</span></p>
     </template>
     <p v-else>{{ t("track.loading") }}</p>
   </section>

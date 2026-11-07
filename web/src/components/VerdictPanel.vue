@@ -4,7 +4,7 @@ import { RouterLink } from "vue-router";
 import { dateLocale, t } from "../lib/i18n";
 import type { Verdict } from "../lib/registry";
 
-const props = defineProps<{ verdict: Verdict; fileHash?: string }>();
+const props = defineProps<{ verdict: Verdict; fileHash?: string; code?: string }>();
 const when = (d: Date | null) => d?.toLocaleDateString(dateLocale(), { dateStyle: "long" }) ?? "";
 
 const copy = computed(() => {
@@ -24,6 +24,7 @@ const copy = computed(() => {
   <div role="status">
     <h2 :class="['text-2xl', copy.tone]">{{ copy.title }}</h2>
     <p class="mt-3 max-w-prose">{{ copy.body }}</p>
+    <p v-if="code" class="mt-1 text-ink-soft">{{ t("document.id") }}: <span class="hash">{{ code }}</span></p>
     <p v-if="verdict.status !== 'not_found'" class="mt-1 text-ink-soft">{{ t("verdict.onNetwork", { network: verdict.network }) }}</p>
     <div class="mt-5 flex flex-wrap gap-3">
       <RouterLink v-if="verdict.status === 'not_found'" to="/request" class="btn">{{ t("verdict.ask") }}</RouterLink>

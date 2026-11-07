@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import pg from "pg";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS institutions (
@@ -12,6 +13,9 @@ CREATE TABLE IF NOT EXISTS institutions (
 );
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS logo_type TEXT;
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS seal_style JSONB;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS seal_image_type TEXT;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS emblem_type TEXT;
 CREATE TABLE IF NOT EXISTS staff (
   account TEXT PRIMARY KEY,
   institution_id INTEGER NOT NULL REFERENCES institutions(id),
@@ -77,6 +81,8 @@ CREATE TABLE IF NOT EXISTS credentials (
   created_by TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE credentials ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE credentials ADD COLUMN IF NOT EXISTS sealed BOOLEAN NOT NULL DEFAULT TRUE;
 CREATE INDEX IF NOT EXISTS credentials_inst ON credentials (institution_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS shares (
   id UUID PRIMARY KEY,
@@ -119,6 +125,41 @@ CREATE TABLE IF NOT EXISTS applications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS applicant_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS identity_document TEXT;
+ALTER TABLE applications DROP COLUMN IF EXISTS identity_type;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS identity_number TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS identity_consent_at TIMESTAMPTZ;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS website TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS official_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS registration_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS institution_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS country TEXT NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
+UPDATE institutions i SET website = a.website, phone = a.phone, official_email = a.official_email,
+  registration_number = a.registration_number, institution_type = a.institution_type, country = a.country, city = a.city
+  FROM applications a WHERE a.institution_id = i.id AND a.status = 'approved' AND i.registration_number = '';
+CREATE TABLE IF NOT EXISTS audit_anchors (
+  day INTEGER PRIMARY KEY,
+  root TEXT NOT NULL,
+  tx_hash TEXT,
+  anchored_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS institution_changes (
+  id UUID PRIMARY KEY,
+  institution_id INTEGER NOT NULL REFERENCES institutions(id),
+  field TEXT NOT NULL,
+  old_value TEXT NOT NULL,
+  new_value TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  evidence_type TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  review_reason TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_open_change ON institution_changes (institution_id, field) WHERE status = 'pending';
 CREATE UNIQUE INDEX IF NOT EXISTS applications_open_number ON applications (lower(registration_number)) WHERE status <> 'rejected';
 CREATE UNIQUE INDEX IF NOT EXISTS applications_open_wallet ON applications (wallet) WHERE status <> 'rejected';
 CREATE TABLE IF NOT EXISTS settings (
@@ -133,12 +174,51 @@ CREATE TABLE IF NOT EXISTS sponsorship_usage (
 );
 `;
 
-export type Db = PGlite;
+export interface Queryable {
+  query<T = any>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+  exec(sql: string): Promise<unknown>;
+}
+export interface Db extends Queryable {
+  transaction<R>(work: (tx: Queryable) => Promise<R>): Promise<R>;
+  close(): Promise<void>;
+}
 
-/** `dataDir` undefined means in-memory (tests). Production should swap in managed Postgres. */
+/** Local development and tests. `dataDir` undefined means in-memory. One process only. */
 export async function openDb(dataDir?: string): Promise<Db> {
   if (dataDir) mkdirSync(dataDir, { recursive: true });
-  const db = new PGlite(dataDir);
-  await db.exec(SCHEMA);
-  return db;
+  const lite = new PGlite(dataDir);
+  await lite.exec(SCHEMA);
+  return {
+    query: (sql, params) => lite.query(sql, params as any[]),
+    exec: (sql) => lite.exec(sql),
+    transaction: (work) => lite.transaction((tx) => work({ query: (sql, params) => tx.query(sql, params as any[]), exec: (sql) => tx.exec(sql) })) as Promise<any>,
+    close: () => lite.close(),
+  };
+}
+
+/** Production. */
+export async function openPostgres(url: string): Promise<Db> {
+  const pool = new pg.Pool({ connectionString: url, max: 10 });
+  // An idle connection can drop when Postgres restarts. The pool replaces it, and this keeps the process up.
+  pool.on("error", (error) => console.error("idle database connection lost", error));
+  await pool.query(SCHEMA);
+  return {
+    query: (sql, params) => pool.query(sql, params as any[]) as Promise<any>,
+    exec: (sql) => pool.query(sql),
+    async transaction(work) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await work({ query: (sql, params) => client.query(sql, params as any[]) as Promise<any>, exec: (sql) => client.query(sql) });
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    close: () => pool.end(),
+  };
 }

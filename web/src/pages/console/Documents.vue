@@ -4,18 +4,22 @@ import { useRouter } from "vue-router";
 import { Plus } from "lucide-vue-next";
 import PageHead from "../../components/console/PageHead.vue";
 import { api } from "../../lib/api";
-import { longDate, newCredentialId, shortId, stampCertificate, statusLabel } from "../../lib/certificate";
+import { longDate, shortId, stampCertificate, statusLabel } from "../../lib/certificate";
+import { credentialIdFor, newCertificateCode } from "../../lib/certificateCode";
 import { sha256File } from "../../lib/hash";
+import { loadSealFiles, type SealImageFlags } from "../../lib/sealFiles";
+import type { SealStyle } from "../../lib/sealStyles";
 import { t } from "../../lib/i18n";
 import { canWrite, issue } from "../../lib/wallet";
 
-interface Row { id: string; owner_name: string; title: string; created_at: string; status: string }
+interface Row { id: string; code: string | null; owner_name: string; title: string; created_at: string; status: string }
 const router = useRouter();
 const rows = ref<Row[] | null>(null);
 const error = ref("");
 const dialog = ref<HTMLDialogElement>();
 const form = reactive({ ownerName: "", title: "", description: "" });
 const file = ref<File>();
+const withSeal = ref(true);
 const step = ref("");
 const formError = ref("");
 
@@ -29,6 +33,7 @@ onMounted(async () => {
 
 function start(chosen?: File) {
   file.value = chosen;
+  withSeal.value = true;
   formError.value = "";
   dialog.value?.showModal();
 }
@@ -36,16 +41,20 @@ function start(chosen?: File) {
 async function create() {
   if (!file.value) return;
   formError.value = "";
-  const id = newCredentialId();
   try {
     step.value = t("documents.stamping");
-    const stamped = await stampCertificate(file.value, id);
-    const hash = await sha256File(stamped);
+    const { institution, seal, sealImages } = await api<{ institution: string; seal: SealStyle; sealImages: SealImageFlags }>("/me");
+    const code = newCertificateCode(institution);
+    const id = credentialIdFor(code);
+    // Without a seal the file stays exactly as uploaded, so that copy is the one that verifies.
+    const final = withSeal.value ? await stampCertificate(file.value, code, institution, seal, await loadSealFiles(sealImages)) : file.value;
+    const hash = await sha256File(final);
     step.value = t("documents.saving");
     const body = new FormData();
-    body.set("credentialId", id);
+    body.set("code", code);
     for (const [k, v] of Object.entries(form)) body.set(k, v);
-    body.set("file", stamped);
+    body.set("sealed", String(withSeal.value));
+    body.set("file", final);
     await api("/credentials", { method: "POST", body });
     if (canWrite()) {
       step.value = t("common.waitingWallet");
@@ -84,7 +93,7 @@ async function create() {
       <tbody>
         <tr v-for="(r, i) in rows" :key="r.id">
           <td>{{ i + 1 }}</td>
-          <td class="hash" :title="r.id">{{ shortId(r.id) }}</td>
+          <td class="hash" :title="r.id">{{ r.code ?? shortId(r.id) }}</td>
           <td>{{ r.owner_name }}</td>
           <td class="whitespace-nowrap">{{ longDate(r.created_at) }}</td>
           <td>{{ r.title }}</td>
@@ -105,7 +114,8 @@ async function create() {
         <input type="file" accept="application/pdf" class="field mt-1" :required="!file" @change="file = ($event.target as HTMLInputElement).files?.[0]" />
       </label>
       <p v-if="file" class="text-sm text-ink-soft">{{ file.name }}</p>
-      <p class="text-sm text-ink-soft">{{ t("documents.stampNote") }}</p>
+      <label class="flex items-center gap-2"><input v-model="withSeal" type="checkbox" class="size-4" />{{ t("documents.addSeal") }}</label>
+      <p class="text-sm text-ink-soft">{{ t(withSeal ? "documents.stampNote" : "documents.noSealNote") }}</p>
       <p v-if="formError" class="text-seal" role="alert">{{ formError }}</p>
       <div class="flex justify-end gap-3">
         <button type="button" class="btn btn-quiet" :disabled="!!step" @click="dialog?.close()">{{ t("common.cancel") }}</button>

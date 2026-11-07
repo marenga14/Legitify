@@ -96,4 +96,6 @@ export function viemChain(opts: { rpcUrl: string; registry: Address; factory: Ad
   };
 }
 
+/** The web app derives the same value: see web/src/lib/certificateCode.ts. */
+export const credentialIdFor = (code: string): Hex => keccak256(new TextEncoder().encode(`legitify:credential:${code}`));
 export const keccakChallenge = (text: string) => keccak256(new TextEncoder().encode(text));
