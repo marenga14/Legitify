@@ -63,13 +63,13 @@ async function create() {
 
 <template>
   <PageHead :title="t('documents.title')">
-    <button class="btn btn-quiet bg-sheet!" @click="start()"><Plus class="size-4" aria-hidden="true" />{{ t("documents.create") }}</button>
+    <button class="btn btn-quiet" @click="start()"><Plus class="size-4" aria-hidden="true" />{{ t("documents.create") }}</button>
   </PageHead>
   <p v-if="error" class="mt-4 text-seal" role="alert">{{ error }}</p>
 
-  <div class="mt-4 rounded-md bg-gradient-to-r from-sheet to-sky p-6 shadow-sm">
+  <div class="console-banner mt-4 p-6">
     <button
-      class="grid h-28 w-40 place-items-center rounded border-2 border-dashed border-harbour/60 bg-wash text-harbour hover:bg-white"
+      class="grid h-28 w-40 place-items-center rounded relative z-1 border-2 border-dashed border-white/60 bg-white/10 text-white hover:bg-white/20"
       :aria-label="t('documents.create')"
       @click="start()"
       @dragover.prevent

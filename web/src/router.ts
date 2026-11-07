@@ -60,7 +60,7 @@ export const router = createRouter({
 // A convenience only: the API checks the role on every call.
 router.beforeEach((to) => {
   document.documentElement.classList.toggle("theme-console", isConsolePath(to.path));
-  applyTheme(isConsolePath(to.path));
+  applyTheme();
   const roles = to.meta.roles;
   if (!roles) return;
   const role = session.current?.role;

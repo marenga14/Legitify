@@ -16,7 +16,7 @@
         var inConsole = /^\/app(\/|$)/.test(location.pathname), saved = null;
         try { saved = localStorage.getItem("legitify.theme"); } catch (e) {}
         document.documentElement.classList.toggle("theme-console", inConsole);
-        document.documentElement.dataset.theme = saved === "light" || saved === "dark" ? saved : inConsole ? "light" : "dark";
+        document.documentElement.dataset.theme = saved === "light" ? "light" : "dark";
       })();
     </script>
   </head>

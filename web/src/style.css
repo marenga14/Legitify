@@ -16,7 +16,7 @@
   --color-caution: #f6c667;
   --color-periwinkle: #8fa8ff;
   --color-harbour: #095073;
-  --color-harbour-deep: #002d42;
+  --color-harbour-deep: #0a0930;
   --color-sky: #a4def2;
   --color-lagoon: #1f7a78;
   --color-wash: #f1f3f5;
@@ -26,18 +26,6 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-html.theme-console {
-  --color-paper: #f3f4f6;
-  --color-paper-deep: #e6eef3;
-  --color-sheet: #ffffff;
-  --color-ink: #0c3448;
-  --color-ink-soft: #3f6478;
-  --color-stamp: #095073;
-  --color-stamp-deep: #002d42;
-  --color-seal: #b3261e;
-  --color-approve: #16794c;
-  --color-caution: #8f6500;
-}
 
 /* The same two worlds, each with its opposite. A visitor's choice follows them across both. */
 html[data-theme="light"]:not(.theme-console) {
@@ -58,22 +46,37 @@ html[data-theme="light"]:not(.theme-console) {
   --accent-from: #6a3bf0;
   --accent-to: #3f5fd8;
 }
-html.theme-console[data-theme="dark"] {
-  --color-paper: #071d29;
-  --color-paper-deep: #0d2c3b;
-  --color-sheet: #0e2a38;
-  --color-ink: #e4f2f8;
-  --color-ink-soft: #a9c7d6;
-  --color-stamp: #1f7ea8;
-  --color-stamp-deep: #17678b;
-  --color-seal: #ff9a9a;
-  --color-approve: #4fd6a0;
-  --color-caution: #f0c56a;
-  --color-harbour: #a4def2;
-  --color-sky: #0f3647;
-  --color-wash: #123445;
-  --color-line: #27495a;
-  --color-lagoon: #1b6f6d;
+/* The console shares the landing page's palette. Only its working colours are its own. */
+html.theme-console {
+  --color-harbour: #cfd6ff;
+  --color-sky: #15114f;
+  --color-wash: rgb(143 168 255 / 0.1);
+  --color-line: rgb(143 168 255 / 0.22);
+  --color-lagoon: #7c4dff;
+  --color-lagoon-deep: #6a3bf0;
+}
+html.theme-console[data-theme="light"] {
+  --color-paper: #f5f4fd;
+  --color-paper-deep: #e7e4fb;
+  --color-sheet: #ffffff;
+  --color-ink: #17124f;
+  --color-ink-soft: #4c4a7c;
+  --color-stamp: #5a33dc;
+  --color-stamp-deep: #4823bd;
+  --color-seal: #b3261e;
+  --color-approve: #0f7a4f;
+  --color-caution: #875600;
+  --color-periwinkle: #4258c9;
+  --color-harbour: #2c1b8f;
+  --color-sky: #ece9fd;
+  --color-wash: rgb(90 51 220 / 0.07);
+  --color-line: rgb(66 88 201 / 0.2);
+  --color-lagoon: #5a33dc;
+  --color-lagoon-deep: #4823bd;
+  --sweep-a: rgb(124 77 255 / 0.16);
+  --sweep-b: rgb(143 168 255 / 0.22);
+  --accent-from: #6a3bf0;
+  --accent-to: #3f5fd8;
 }
 
 /* The Latin face has no CJK glyphs, and tight tracking crowds them. */
@@ -84,12 +87,11 @@ html:lang(zh) {
 
 @layer base {
   html:lang(zh) h1, html:lang(zh) h2, html:lang(zh) h3 { letter-spacing: 0 !important; line-height: 1.2 !important; }
+  dialog { background: var(--color-sheet); color: var(--color-ink); }
   html { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); -webkit-text-size-adjust: 100%; }
   body { font-size: 1rem; line-height: 1.6; min-height: 100vh; }
   h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; letter-spacing: -0.028em; font-weight: 700; text-wrap: balance; }
   :focus-visible { outline: 3px solid var(--color-periwinkle); outline-offset: 2px; border-radius: 4px; }
-  html.theme-console :focus-visible { outline-color: var(--color-harbour); }
-  html.theme-console h1, html.theme-console h2, html.theme-console h3 { letter-spacing: -0.012em; color: var(--color-harbour); }
 }
 
 @layer components {
@@ -117,14 +119,22 @@ html:lang(zh) {
   .btn-icon:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
   .text-verifiable { background: linear-gradient(95deg, var(--accent-from, #a06bff), var(--accent-to, #8fa8ff) 75%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-  /* The old dashboards: square-shouldered controls, gradient headers, dotted detail rules. */
-  html.theme-console .btn { border-radius: 6px; font-size: 0.95rem; }
-  html.theme-console .field { border-radius: 6px; border-color: var(--color-line); }
-  html.theme-console .link { color: var(--color-harbour); }
+  /* The console: the same glass and glow as the landing page, with denser tables. */
+  html.theme-console .field { border-color: var(--color-line); }
   .btn-view { min-height: 2.25rem; padding: 0.25rem 1.15rem; background: var(--color-lagoon); }
-  .btn-view:hover { background: #17605e; }
-  .bg-gradient { background-image: linear-gradient(to right, #095073, #3a76c4); color: #fff; }
-  .panel { background: var(--color-sheet); border-radius: 8px; box-shadow: 0 1px 3px rgb(9 80 115 / 0.14); }
+  .btn-view:hover { background: var(--color-lagoon-deep); }
+  .bg-gradient { background-image: linear-gradient(95deg, #6a3bf0, #4258c9); color: #fff; }
+  .panel { background: color-mix(in srgb, var(--color-sheet) 72%, transparent); border: 1px solid var(--color-line); border-radius: 14px; backdrop-filter: blur(10px); }
+  .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  a.stat-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgb(124 77 255 / 0.28); }
+  /* Always violet, so it reads the same as the landing page in either theme. */
+  .console-banner { position: relative; overflow: hidden; color: #fff; border-radius: 14px; background: linear-gradient(115deg, #6a3bf0, #3b2bb8 55%, #1a1560); box-shadow: 0 16px 44px rgb(92 62 245 / 0.32); }
+  .console-banner::after { content: ""; position: absolute; right: -6rem; top: -10rem; width: 26rem; height: 26rem; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgb(143 168 255 / 0.4), transparent); }
+  .console-shell { position: relative; background:
+    radial-gradient(60rem 34rem at 88% -6%, var(--sweep-a, rgb(92 62 245 / 0.36)), transparent 70%),
+    radial-gradient(38rem 26rem at 12% 0%, var(--sweep-b, rgb(124 77 255 / 0.2)), transparent 70%); }
+  .console-side { background: color-mix(in srgb, var(--color-sky) 82%, transparent); border: 1px solid var(--color-line); border-radius: 14px; backdrop-filter: blur(12px); }
+  .nav-active { background: linear-gradient(95deg, #7c4dff, #5a4fe0); color: #fff; box-shadow: 0 8px 22px rgb(124 77 255 / 0.4); }
   .data-table { width: 100%; border-collapse: collapse; text-align: left; }
   .data-table th { padding: 0.8rem 1rem; font-weight: 600; white-space: nowrap; }
   .data-table td { padding: 0.8rem 1rem; border-bottom: 1px solid var(--color-line); }

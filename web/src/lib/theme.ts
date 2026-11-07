@@ -12,11 +12,11 @@ function saved(): Theme | null {
   }
 }
 
-/** Untouched, each side keeps its own look: a dark public site and a light console. */
+/** One choice for the whole product, dark until someone picks otherwise. */
 export const theme = ref<Theme>("dark");
 
-export function applyTheme(inConsole: boolean) {
-  theme.value = saved() ?? (inConsole ? "light" : "dark");
+export function applyTheme() {
+  theme.value = saved() ?? "dark";
   document.documentElement.dataset.theme = theme.value;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.value === "dark" ? "#0a0930" : "#f5f4fd");
 }

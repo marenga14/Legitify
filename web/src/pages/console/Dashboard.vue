@@ -34,14 +34,14 @@ const cards = computed(() => {
 <template>
   <h1 class="sr-only">{{ t("dashboard.title") }}</h1>
   <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
-  <div class="relative flex min-h-36 items-center justify-between overflow-hidden rounded-md bg-gradient-to-r from-sheet via-sky/40 to-sky px-7 py-5 shadow-sm">
-    <p class="text-2xl font-bold text-harbour">{{ institution }}</p>
-    <span class="grid size-28 shrink-0 place-items-center rounded-full border border-approve/50 bg-white"><BrandMark class="brand-on-white h-14 w-auto" /></span>
+  <div class="console-banner flex min-h-36 items-center justify-between px-7 py-5">
+    <p class="relative z-1 text-3xl font-bold tracking-tight">{{ institution }}</p>
+    <span class="relative z-1 grid size-24 shrink-0 place-items-center rounded-2xl bg-white shadow-lg"><BrandMark class="brand-on-white h-12 w-auto" /></span>
   </div>
   <div v-if="stats" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    <RouterLink v-for="c in cards" :key="c.name" :to="c.to" class="panel overflow-hidden hover:shadow-md">
-      <span class="block border-b border-line bg-wash px-4 py-2.5 text-lg font-bold text-harbour">{{ c.name }}</span>
-      <span class="block py-6 text-center text-6xl font-extrabold text-harbour">{{ c.number.toLocaleString() }}</span>
+    <RouterLink v-for="c in cards" :key="c.name" :to="c.to" class="panel stat-card overflow-hidden">
+      <span class="block border-b border-line bg-wash px-4 py-2.5 font-semibold text-harbour">{{ c.name }}</span>
+      <span class="block py-6 text-center text-6xl font-extrabold"><span class="text-verifiable">{{ c.number.toLocaleString() }}</span></span>
     </RouterLink>
   </div>
   <div v-if="stats" class="mt-4 grid gap-3 xl:grid-cols-2">
