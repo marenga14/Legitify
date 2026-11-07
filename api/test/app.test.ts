@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Triage, Triager } from "../src/agent.js";
+import { anchorYesterday } from "../src/anchor.js";
 import { appendAudit, dailyRoot, verifyAuditChain } from "../src/audit.js";
-import { createApp, runSlaSweep, syncInstitutions } from "../src/app.js";
+import { createApp, runSlaSweep, syncInstitutions, type Deps } from "../src/app.js";
 import type { Chain, Member, RegistryMatch } from "../src/chain.js";
 import { openDb, type Db } from "../src/db.js";
 
@@ -28,6 +29,9 @@ let db: Db;
 let members: Map<string, Member>;
 let match: RegistryMatch;
 let triager: ReturnType<typeof vi.fn<Triager>>;
+let deps: Deps;
+let probe: () => { chainId: number; owner: Address };
+let networkUsed: [string, Address][];
 let app: ReturnType<typeof createApp>;
 let dataDir: string;
 
@@ -39,7 +43,9 @@ beforeEach(async () => {
     [accountFor(uniAAdmin.address), { institutionId: 1, role: "admin" }],
     [accountFor(uniB.address), { institutionId: 2, role: "operator" }],
   ]);
-  match = { status: "not_found", institutionName: null };
+  match = { status: "not_found", institutionName: null, institutionId: null };
+  probe = () => ({ chainId: 677, owner: platformKey.address });
+  networkUsed = [];
   triager = vi.fn<Triager>(async () => triage());
   const chain: Chain = {
     platformOwner: async () => platformKey.address,
@@ -47,6 +53,8 @@ beforeEach(async () => {
     getMember: async (a) => members.get(a) ?? { institutionId: 0, role: "none" },
     canIssue: async (a) => members.has(a),
     verifyByHash: async () => match,
+    probeNetwork: async () => probe(),
+    useNetwork: (rpcUrl, registry) => void networkUsed.push([rpcUrl, registry]),
     listInstitutions: async () => [
       { id: 1, name: "University A", active: true, admin: uniAAdmin.address },
       { id: 2, name: "University B", active: true, admin: uniB.address },
@@ -54,10 +62,12 @@ beforeEach(async () => {
   };
   await syncInstitutions(db, chain);
   await db.query("UPDATE institutions SET agent_enabled = TRUE WHERE id = 1");
-  app = createApp({
+  deps = {
     db, chain, triager, sessionSecret: "s".repeat(32), fileMasterKey: "22".repeat(32), dataDir,
     webOrigin: "http://localhost:5173", registry: "0x1111111111111111111111111111111111111111", dailySponsorQuota: 2,
-  });
+    network: { name: "BOT Chain", chainId: 968, rpcUrl: "https://rpc.bohr.life", explorerUrl: "https://scan.bohr.life" },
+  };
+  app = createApp(deps);
 });
 
 async function submit(over: Record<string, string> = {}, content = PDF) {
@@ -141,7 +151,7 @@ describe("agent consent", () => {
 
 describe("routing", () => {
   it("escalates a revoked registry match without using the agent", async () => {
-    match = { status: "revoked", institutionName: "University A" };
+    match = { status: "revoked", institutionName: "University A", institutionId: 1 };
     const { id } = await (await submit({ consentAgent: "false" })).json();
     const { token } = await login(uniA);
     const r = await (await app.request(`/requests/${id}`, authed(token))).json();
@@ -226,11 +236,346 @@ describe("answering", () => {
     const { token } = await login(uniA);
     expect((await app.request(`/requests/${id}/answer`, authed(token, { outcome: "not_confirmed" }))).status).toBe(400);
   });
+  it("can't be reopened or moved once answered", async () => {
+    const { id, trackingToken } = await (await submit()).json();
+    const { token } = await login(uniA);
+    await app.request(`/requests/${id}/answer`, authed(token, { outcome: "not_confirmed", note: "No such graduate" }));
+    expect((await app.request(`/requests/${id}/claim`, authed(token, {}))).status).toBe(409);
+    expect((await app.request(`/requests/${id}/escalate`, authed(token, { reason: "second thoughts" }))).status).toBe(409);
+    expect((await app.request(`/requests/${id}/answer`, authed(token, { outcome: "confirmed" }))).status).toBe(409);
+    const tracked = await (await app.request(`/requests/track/${trackingToken}`)).json();
+    expect(tracked).toMatchObject({ status: "answered", outcome: "not_confirmed" });
+  });
+  it("lets only one of two simultaneous answers through", async () => {
+    const { id } = await (await submit()).json();
+    const { token } = await login(uniA);
+    const results = await Promise.all((["confirmed", "needs_information"] as const).map((outcome) =>
+      app.request(`/requests/${id}/answer`, authed(token, { outcome, note: "x" }))));
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
   it("can't be answered twice", async () => {
     const { id } = await (await submit()).json();
     const { token } = await login(uniA);
     await app.request(`/requests/${id}/answer`, authed(token, { outcome: "confirmed" }));
     expect((await app.request(`/requests/${id}/answer`, authed(token, { outcome: "not_confirmed", note: "x" }))).status).toBe(409);
+  });
+});
+
+describe("staff addresses", () => {
+  const WALLET = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359";
+  const put = (token: string, level: number) => ({ ...authed(token, { level }), method: "PUT" });
+  it("treats any spelling of a wallet as the same person", async () => {
+    members.set(WALLET, { institutionId: 1, role: "operator" });
+    const { token } = await login(uniAAdmin);
+    await db.query("INSERT INTO staff (account, institution_id) VALUES ($1, 1)", [WALLET]); // as sign-in does
+    const added = await app.request("/staff", authed(token, { account: WALLET.toLowerCase(), name: "Neema" }));
+    expect(added.status).toBe(201);
+    expect((await app.request(`/staff/${WALLET.toLowerCase()}/level`, put(token, 2))).status).toBe(200);
+    const { rows } = await db.query("SELECT account, name, level FROM staff WHERE lower(account) = $1", [WALLET.toLowerCase()]);
+    expect(rows).toEqual([{ account: WALLET, name: "Neema", level: 2 }]);
+  });
+  it("answers 404 for something that isn't a wallet", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await app.request("/staff/nonsense/level", put(token, 2))).status).toBe(404);
+  });
+});
+
+describe("institution applications", () => {
+  const applicant = privateKeyToAccount(`0x${"e1".repeat(32)}`);
+  const SEALED = "%PDF-1.7 signed and sealed";
+  async function apply(over: Record<string, string> = {}, file = new File([PDF], "reg.pdf"), signer = applicant) {
+    const institutionName = over.institutionName ?? "Mbeya College";
+    const { nonce, message } = await (await app.request("/applications/challenge", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ institutionName }),
+    })).json();
+    const form = new FormData();
+    const fields = {
+      institutionName, registrationNumber: "REG-123", institutionType: "college", country: "Tanzania", city: "Mbeya",
+      officialEmail: "registrar@mbeya.example", phone: "+255 700 000 000", applicantName: "Neema J", applicantPosition: "Registrar", applicantEmail: "neema@mbeya.example",
+      signatoryName: "Dr Baraka M", signatoryTitle: "Principal", confirmed: "true", nonce, signature: await signer.signMessage({ message }), ...over,
+    };
+    for (const [k, v] of Object.entries(fields)) form.set(k, v);
+    form.set("file", file);
+    return app.request("/applications", { method: "POST", body: form });
+  }
+  const upload = (token: string, file = new File([SEALED], "letter.pdf")) => {
+    const form = new FormData();
+    form.set("file", file);
+    return app.request(`/applications/track/${token}/mandate`, { method: "POST", body: form });
+  };
+  const track = async (token: string) => (await app.request(`/applications/track/${token}`)).json();
+  const pendingId = async () => (await db.query<{ id: string }>("SELECT id FROM applications LIMIT 1")).rows[0]!.id;
+
+  it("records the wallet that signed and stores the document encrypted", async () => {
+    const res = await apply();
+    expect(res.status).toBe(201);
+    const { trackingToken } = await res.json();
+    expect(await track(trackingToken)).toMatchObject({ status: "awaiting_mandate", wallet: applicant.address, signatoryName: "Dr Baraka M", applicantEmail: "neema@mbeya.example" });
+    const stored = await readFile(path.join(dataDir, "files", `${await pendingId()}-registration.bin`));
+    expect(stored.includes(Buffer.from("confidential"))).toBe(false);
+  });
+  it("refuses a signature made for another institution", async () => {
+    const { nonce } = await (await app.request("/applications/challenge", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ institutionName: "Mbeya College" }),
+    })).json();
+    const signature = await applicant.signMessage({ message: `Apply to Legitfy with this wallet as administrator of:\nOther Place\nNonce: ${nonce}` });
+    expect((await apply({ nonce, signature })).status).toBe(201); // Recovers to some other address...
+    const { rows } = await db.query<{ wallet: string }>("SELECT wallet FROM applications");
+    expect(rows[0]!.wallet).not.toBe(applicant.address); // ...so the applicant's wallet is never claimed.
+  });
+  it("needs the confirmation, a real file and a fresh nonce", async () => {
+    expect((await apply({ confirmed: "false" })).status).toBe(400);
+    expect((await apply({ applicantEmail: "not-an-email" })).status).toBe(400);
+    expect((await apply({}, new File(["<html>"], "a.html"))).status).toBe(400);
+    expect((await apply({ nonce: "ab".repeat(16) })).status).toBe(401);
+  });
+  it("accepts a phone photo", async () => {
+    const jpeg = new File([Buffer.from("ffd8ffe000104a464946", "hex")], "reg.jpg");
+    expect((await apply({}, jpeg)).status).toBe(201);
+  });
+  it("refuses a wallet already in an institution", async () => {
+    members.set(applicant.address, { institutionId: 1, role: "operator" });
+    expect((await apply()).status).toBe(409);
+  });
+  it("allows one open application per registration number and per wallet, and a new one after rejection", async () => {
+    const owner = await login(platformKey);
+    await apply();
+    expect((await apply({ registrationNumber: "reg-123" }, undefined, stranger)).status).toBe(409);
+    expect((await apply({ registrationNumber: "REG-999" })).status).toBe(409);
+    await app.request(`/platform/applications/${await pendingId()}/reject`, authed(owner.token, { reason: "No such registration" }));
+    expect((await apply()).status).toBe(201);
+  });
+  it("can't be approved before the letter arrives or before registration on-chain", async () => {
+    const { trackingToken } = await (await apply()).json();
+    const { token } = await login(platformKey);
+    const approve = () => app.request(`/platform/applications/${id}/approve`, authed(token, {}));
+    const id = await pendingId();
+    expect((await approve()).status).toBe(409);
+    expect((await upload(trackingToken)).status).toBe(200);
+    expect((await track(trackingToken)).status).toBe("under_review");
+    expect((await approve()).status).toBe(409);
+    expect((await (await app.request(`/platform/applications/${id}`, authed(token))).json()).on_chain).toBe(false);
+    members.set(applicant.address, { institutionId: 2, role: "admin" });
+    expect((await (await app.request(`/platform/applications/${id}`, authed(token))).json()).on_chain).toBe(true);
+    expect((await approve()).status).toBe(200);
+    expect(await track(trackingToken)).toMatchObject({ status: "approved" });
+    expect((await upload(trackingToken)).status).toBe(409);
+    const { rows } = await db.query<{ location: string }>("SELECT location FROM institutions WHERE id = 2");
+    expect(rows[0]!.location).toBe("Mbeya, Tanzania");
+  });
+  it("tells the applicant why it was rejected", async () => {
+    const { trackingToken } = await (await apply()).json();
+    const { token } = await login(platformKey);
+    const reject = (body: unknown) => app.request(`/platform/applications/${id}/reject`, authed(token, body));
+    const id = await pendingId();
+    expect((await reject({ reason: "" })).status).toBe(400);
+    expect((await reject({ reason: "The seal is missing" })).status).toBe(200);
+    expect(await track(trackingToken)).toMatchObject({ status: "rejected", reviewReason: "The seal is missing" });
+  });
+  it("shows files only to the platform admin, and logs the view", async () => {
+    const { trackingToken } = await (await apply()).json();
+    await upload(trackingToken);
+    const id = await pendingId();
+    const owner = await login(platformKey);
+    const staff = await login(uniA);
+    expect((await app.request(`/platform/applications/${id}/files/mandate`, authed(staff.token))).status).toBe(403);
+    expect((await app.request(`/platform/applications`, authed(staff.token))).status).toBe(403);
+    const res = await app.request(`/platform/applications/${id}/files/mandate`, authed(owner.token));
+    expect(await res.text()).toBe(SEALED);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect((await app.request(`/platform/applications/${id}/files/secrets`, authed(owner.token))).status).toBe(404);
+    const { rows } = await db.query("SELECT 1 FROM audit_log WHERE action = 'application.file_viewed'");
+    expect(rows.length).toBe(1);
+  });
+  it("gives a wrong link nothing", async () => {
+    await apply();
+    expect((await app.request("/applications/track/nope")).status).toBe(404);
+    expect((await upload("nope")).status).toBe(404);
+  });
+});
+
+describe("network details", () => {
+  const MAINNET = {
+    name: "BOT Chain", chainId: 677, rpcUrl: "https://rpc.botchain.ai", explorerUrl: "https://scan.botchain.ai",
+    registry: "0x2222222222222222222222222222222222222222",
+  };
+  const put = (token: string, body: unknown) => ({ ...authed(token, body), method: "PUT" });
+  const save = (token: string, body: unknown = MAINNET) => app.request("/platform/network", put(token, body));
+  const shown = async () => (await app.request("/network")).json();
+
+  it("shows the deployment's defaults until the admin saves", async () => {
+    expect(await shown()).toMatchObject({ chainId: 968, registry: "0x1111111111111111111111111111111111111111" });
+  });
+  it("publishes saved details and points the API at them", async () => {
+    const { token } = await login(platformKey);
+    expect((await save(token)).status).toBe(200);
+    expect(await shown()).toMatchObject(MAINNET);
+    expect(networkUsed).toEqual([[MAINNET.rpcUrl, MAINNET.registry]]);
+  });
+  it("only lets the platform admin change them", async () => {
+    const staff = await login(uniAAdmin);
+    expect((await save(staff.token)).status).toBe(403);
+    expect((await app.request("/platform/network", { method: "PUT" })).status).toBe(401);
+  });
+  it("refuses details that would break sign-in, and leaves the current network alone", async () => {
+    const { token } = await login(platformKey);
+    probe = () => ({ chainId: 1, owner: platformKey.address });
+    expect((await save(token)).status).toBe(422);
+    probe = () => ({ chainId: 677, owner: stranger.address });
+    expect((await save(token)).status).toBe(422);
+    probe = () => { throw new Error("unreachable"); };
+    expect((await save(token)).status).toBe(422);
+    expect((await save(token, { ...MAINNET, rpcUrl: "javascript:alert(1)" })).status).toBe(400);
+    expect(networkUsed).toEqual([]);
+    expect((await shown()).chainId).toBe(968);
+  });
+});
+
+describe("institution showcase", () => {
+  const PNG = Buffer.from("89504e470d0a1a0a0000", "hex");
+  const put = (token: string, listed: boolean) => ({ ...authed(token, { listed }), method: "PUT" });
+  const uploadLogo = (token: string, bytes: Buffer | string = PNG) => {
+    const form = new FormData();
+    form.set("file", new File([bytes as BlobPart], "logo.png"));
+    return app.request("/institution/logo", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+  };
+  const showcase = async () => (await app.request("/institutions/showcase")).json();
+
+  it("shows nobody by default, even with a logo", async () => {
+    const { token } = await login(uniAAdmin);
+    await uploadLogo(token);
+    expect(await showcase()).toEqual([]);
+    expect((await app.request("/institutions/1/logo")).status).toBe(404);
+  });
+  it("shows an institution once its admin opts in, and hides it again", async () => {
+    const { token } = await login(uniAAdmin);
+    await uploadLogo(token);
+    expect((await app.request("/institution/listing", put(token, true))).status).toBe(200);
+    expect(await showcase()).toMatchObject([{ id: 1, name: "University A" }]);
+    const logo = await app.request("/institutions/1/logo");
+    expect(logo.headers.get("content-type")).toBe("image/png");
+    expect(Buffer.from(await logo.arrayBuffer()).equals(PNG)).toBe(true);
+    await app.request("/institution/listing", put(token, false));
+    expect(await showcase()).toEqual([]);
+  });
+  it("hides a suspended institution", async () => {
+    const { token } = await login(uniAAdmin);
+    await uploadLogo(token);
+    await app.request("/institution/listing", put(token, true));
+    await db.query("UPDATE institutions SET active = FALSE WHERE id = 1");
+    expect(await showcase()).toEqual([]);
+    expect((await app.request("/institutions/1/logo")).status).toBe(404);
+  });
+  it("needs a logo before listing, and refuses anything but PNG or JPEG", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await app.request("/institution/listing", put(token, true))).status).toBe(409);
+    expect((await uploadLogo(token, "<svg onload=alert(1)>")).status).toBe(400);
+    expect((await uploadLogo(token, "%PDF-1.7")).status).toBe(400);
+    expect((await uploadLogo(token, Buffer.concat([PNG, Buffer.alloc(1024 * 1024)]))).status).toBe(413);
+  });
+  it("leaves these choices to the institution admin", async () => {
+    const { token } = await login(uniA);
+    expect((await uploadLogo(token)).status).toBe(403);
+    expect((await app.request("/institution/listing", put(token, true))).status).toBe(403);
+  });
+});
+
+describe("listed networks", () => {
+  const BASE = {
+    name: "Base", chainId: 8453, rpcUrl: "https://mainnet.base.org", explorerUrl: "https://basescan.org",
+    registry: "0x3333333333333333333333333333333333333333",
+  };
+  const PNG = Buffer.from("89504e470d0a1a0a0000", "hex");
+  const add = (token: string, body: unknown = BASE) => app.request("/platform/networks", authed(token, body));
+  const others = async () => (await (await app.request("/network")).json()).others;
+
+  it("lists nothing extra by default", async () => {
+    expect(await others()).toEqual([]);
+  });
+  it("lists a network only when the admin's own registry answers there", async () => {
+    const { token } = await login(platformKey);
+    probe = () => ({ chainId: 8453, owner: stranger.address });
+    expect((await add(token)).status).toBe(422);
+    probe = () => ({ chainId: 1, owner: platformKey.address });
+    expect((await add(token)).status).toBe(422);
+    probe = () => { throw new Error("no contract"); };
+    expect((await add(token)).status).toBe(422);
+    expect(await others()).toEqual([]);
+    probe = () => ({ chainId: 8453, owner: platformKey.address });
+    expect((await add(token)).status).toBe(201);
+    expect(await others()).toEqual([{ ...BASE, hasLogo: false }]);
+    expect(networkUsed).toEqual([]); // Listing one never moves the API off its main network.
+  });
+  it("refuses duplicates, including the main network", async () => {
+    const { token } = await login(platformKey);
+    probe = () => ({ chainId: 8453, owner: platformKey.address });
+    await add(token);
+    expect((await add(token)).status).toBe(409);
+    expect((await add(token, { ...BASE, chainId: 968 })).status).toBe(409);
+  });
+  it("removes a network", async () => {
+    const { token } = await login(platformKey);
+    probe = () => ({ chainId: 8453, owner: platformKey.address });
+    await add(token);
+    expect((await app.request("/platform/networks/8453", { ...authed(token), method: "DELETE" })).status).toBe(200);
+    expect(await others()).toEqual([]);
+    expect((await app.request("/platform/networks/8453", { ...authed(token), method: "DELETE" })).status).toBe(404);
+  });
+  it("stores a logo, and only from the platform admin", async () => {
+    const { token } = await login(platformKey);
+    const staff = await login(uniAAdmin);
+    probe = () => ({ chainId: 8453, owner: platformKey.address });
+    await add(token);
+    const upload = (t: string, bytes: Buffer | string = PNG) => {
+      const form = new FormData();
+      form.set("file", new File([bytes as BlobPart], "logo.png"));
+      return app.request("/platform/networks/8453/logo", { method: "POST", headers: { authorization: `Bearer ${t}` }, body: form });
+    };
+    expect((await upload(staff.token)).status).toBe(403);
+    expect((await upload(token, "<svg>")).status).toBe(400);
+    expect((await app.request("/networks/8453/logo")).status).toBe(404);
+    expect((await upload(token)).status).toBe(200);
+    expect((await app.request("/networks/8453/logo")).headers.get("content-type")).toBe("image/png");
+    expect(await others()).toMatchObject([{ hasLogo: true }]);
+  });
+  it("leaves the list alone for anyone else", async () => {
+    const staff = await login(uniAAdmin);
+    expect((await add(staff.token)).status).toBe(403);
+  });
+});
+
+describe("issuer mismatch", () => {
+  it("escalates a file the registry says another institution issued", async () => {
+    match = { status: "authentic", institutionName: "University B", institutionId: 2 };
+    const { id } = await (await submit({ consentAgent: "false" })).json();
+    const { token } = await login(uniA);
+    const r = await (await app.request(`/requests/${id}`, authed(token))).json();
+    expect(r).toMatchObject({ level: 2, priority: "high", registry_other_issuer: true, registry_institution: "University B" });
+  });
+  it("leaves the institution's own record alone", async () => {
+    match = { status: "authentic", institutionName: "University A", institutionId: 1 };
+    const { id } = await (await submit({ consentAgent: "false" })).json();
+    const { token } = await login(uniA);
+    const r = await (await app.request(`/requests/${id}`, authed(token))).json();
+    expect(r).toMatchObject({ level: 1, priority: "normal", registry_other_issuer: false });
+  });
+});
+
+describe("rate limit", () => {
+  const challenge = (forwardedFor: string) =>
+    app.request("/auth/challenge", { method: "POST", headers: { "x-forwarded-for": forwardedFor } });
+  const statuses = async (send: (i: number) => Response | Promise<Response>) => {
+    const out: number[] = [];
+    for (let i = 0; i < 35; i++) out.push((await send(i)).status);
+    return out;
+  };
+  it("can't be dodged by forging x-forwarded-for", async () => {
+    expect(await statuses((i) => challenge(`10.0.0.${i}`))).toContain(429);
+  });
+  it("behind a trusted proxy, reads only the address the proxy added", async () => {
+    app = createApp({ ...deps, trustProxy: true });
+    expect(await statuses((i) => challenge(`10.0.0.${i}, 203.0.113.9`))).toContain(429);
+    expect(await statuses((i) => challenge(`198.51.100.${i}`))).not.toContain(429);
   });
 });
 
@@ -253,6 +598,37 @@ describe("audit log", () => {
     expect(await dailyRoot(db, new Date())).toBeNull();
     const hash = await appendAudit(db, { requestId: null, institutionId: null, actor: "system", action: "test" });
     expect(await dailyRoot(db, new Date())).toBe(hash);
+  });
+});
+
+describe("audit anchoring", () => {
+  const NOW = new Date("2026-03-02T09:00:00Z");
+  const target = () => {
+    const roots = new Map<number, `0x${string}`>();
+    return {
+      roots,
+      rootOf: async (day: number) => roots.get(day) ?? (`0x${"0".repeat(64)}` as const),
+      anchor: vi.fn(async (day: number, root: `0x${string}`) => void roots.set(day, root)),
+    };
+  };
+  it("anchors yesterday once, however often it runs", async () => {
+    const hash = await appendAudit(db, { requestId: null, institutionId: null, actor: "a", action: "x" });
+    const t = target();
+    expect(await anchorYesterday(db, t, new Date(Date.now() + 86_400_000))).toBe("anchored");
+    expect(await anchorYesterday(db, t, new Date(Date.now() + 86_400_000))).toBe("already_anchored");
+    expect(t.anchor).toHaveBeenCalledTimes(1);
+    expect([...t.roots.values()]).toEqual([`0x${hash}`]);
+  });
+  it("has nothing to do before the log begins", async () => {
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "a", action: "x" });
+    expect(await anchorYesterday(db, target(), NOW)).toBe("nothing_to_anchor");
+  });
+  it("refuses to anchor a rewritten log", async () => {
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "a", action: "x" });
+    await db.query("UPDATE audit_log SET actor = 'mallory'");
+    const t = target();
+    await expect(anchorYesterday(db, t, NOW)).rejects.toThrow(/broken/);
+    expect(t.anchor).not.toHaveBeenCalled();
   });
 });
 
@@ -295,7 +671,7 @@ describe("credentials and share links", () => {
     expect((await createCredential(token)).status).toBe(201);
     const [row] = await (await app.request("/credentials", authed(token))).json();
     expect(row).toMatchObject({ owner_name: "Asha M", status: "pending" });
-    match = { status: "authentic", institutionName: "University A" };
+    match = { status: "authentic", institutionName: "University A", institutionId: 1 };
     const [after] = await (await app.request("/credentials", authed(token))).json();
     expect(after.status).toBe("authentic");
     const dir = path.join(dataDir, "files");

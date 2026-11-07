@@ -108,7 +108,7 @@ const stamp = (d: string) => new Date(d).toLocaleString(dateLocale(), { dateStyl
       <h2 class="text-lg">{{ t("document.shares") }}</h2>
       <p v-if="doc.shares.length === 0" class="mt-2 text-ink-soft">{{ t("document.noShares") }}</p>
       <ol class="mt-4 space-y-4 border-l-[3px] border-harbour pl-4">
-        <li v-for="s in doc.shares" :key="s.id" class="overflow-hidden rounded-md border border-[#dfe5e9]">
+        <li v-for="s in doc.shares" :key="s.id" class="overflow-hidden rounded-md border border-line">
           <p class="bg-gradient px-3 py-1.5 font-semibold">{{ stamp(s.created_at) }}</p>
           <dl class="grid gap-x-8 gap-y-1 p-3 text-sm sm:grid-cols-2">
             <div><dt class="inline font-semibold">{{ t("document.to") }}</dt><dd class="inline">{{ s.recipient }}</dd></div>

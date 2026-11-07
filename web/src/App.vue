@@ -2,19 +2,23 @@
 import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import BrandMark from "./components/BrandMark.vue";
+import BrandWordmark from "./components/BrandWordmark.vue";
 import LanguageSwitch from "./components/LanguageSwitch.vue";
+import SiteFooter from "./components/SiteFooter.vue";
+import ThemeToggle from "./components/ThemeToggle.vue";
 import { session } from "./lib/api";
-import { networkName } from "./lib/config";
 import { currentLocale, t } from "./lib/i18n";
-import { showTitle } from "./router";
+import { isConsolePath, showTitle } from "./router";
 
 const route = useRoute();
-const consoleArea = computed(() => route.path.startsWith("/app"));
+const consoleArea = computed(() => isConsolePath(route.path));
 const open = ref(false);
 watch(() => route.path, () => (open.value = false));
 watch(currentLocale, () => showTitle(route.meta.title ?? "home"));
 const links = computed(() => [
   { to: "/verify", label: t("nav.check") },
+  { to: "/why", label: t("nav.why") },
+  { to: "/how-it-works", label: t("nav.how") },
   { to: "/institutions", label: t("nav.institutions") },
   { to: "/verifiers", label: t("nav.employers") },
   { to: "/developers", label: t("nav.developers") },
@@ -26,25 +30,21 @@ const links = computed(() => [
   <div v-else class="public-shell">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:p-3 focus:bg-sheet">{{ t("nav.skip") }}</a>
     <header class="relative z-30">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-5 md:gap-6">
-        <RouterLink to="/" class="flex items-center gap-2 text-xl font-bold tracking-tight"><BrandMark />Legitify</RouterLink>
-        <nav id="nav" :class="[open ? 'flex' : 'hidden', 'absolute inset-x-0 top-20 flex-col gap-1 bg-paper-deep px-6 pb-5 pt-2 shadow-xl md:static md:flex md:flex-1 md:flex-row md:items-center md:justify-end md:gap-8 md:bg-transparent md:p-0 md:shadow-none']" :aria-label="t('nav.main')">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-5 lg:gap-6">
+        <RouterLink to="/" class="flex items-center gap-2 text-xl font-bold tracking-tight"><BrandMark class="h-7 w-auto" /><BrandWordmark class="text-[1.45rem]" /></RouterLink>
+        <nav id="nav" :class="[open ? 'flex' : 'hidden', 'absolute inset-x-0 top-20 flex-col gap-1 bg-paper-deep px-6 pb-5 pt-2 shadow-xl lg:static lg:flex lg:flex-1 lg:flex-row lg:items-center lg:justify-end lg:gap-7 lg:bg-transparent lg:p-0 lg:shadow-none']" :aria-label="t('nav.main')">
           <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="py-2 text-sm font-medium text-ink-soft hover:text-ink" active-class="text-ink underline decoration-periwinkle decoration-2 underline-offset-8">{{ l.label }}</RouterLink>
-          <RouterLink :to="session.current ? '/app' : '/sign-in'" class="btn mt-2 min-h-10! py-1! text-sm md:mt-0">{{ session.current ? t("nav.openConsole") : t("nav.staffSignIn") }}</RouterLink>
+          <RouterLink :to="session.current ? '/app' : '/sign-in'" class="btn mt-2 min-h-10! py-1! text-sm lg:mt-0">{{ session.current ? t("nav.openConsole") : t("nav.staffSignIn") }}</RouterLink>
         </nav>
         <div class="flex items-center gap-3">
           <LanguageSwitch class="text-ink-soft" />
-          <button class="btn btn-quiet md:hidden" :aria-expanded="open" aria-controls="nav" @click="open = !open">{{ t("nav.menu") }}</button>
+          <ThemeToggle class="text-ink-soft" />
+          <button class="btn btn-quiet lg:hidden" :aria-expanded="open" aria-controls="nav" @click="open = !open">{{ t("nav.menu") }}</button>
         </div>
       </div>
     </header>
     <main id="main" class="relative z-10"><RouterView /></main>
-    <footer class="relative z-10 mt-24 border-t border-periwinkle/20">
-      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-ink-soft">
-        <p>{{ t("footer.record", { network: networkName }) }}</p>
-        <RouterLink to="/request" class="link">{{ t("footer.ask") }}</RouterLink>
-      </div>
-    </footer>
+    <SiteFooter />
   </div>
 </template>
 
@@ -55,12 +55,12 @@ const links = computed(() => [
 .public-shell::before {
   content: ""; position: absolute; inset: 0 0 auto; height: 58rem; pointer-events: none;
   background:
-    radial-gradient(60rem 34rem at 78% 34%, rgb(92 62 245 / 0.42), transparent 70%),
-    radial-gradient(38rem 26rem at 8% 0%, rgb(124 77 255 / 0.26), transparent 70%);
+    radial-gradient(60rem 34rem at 78% 34%, var(--sweep-a, rgb(92 62 245 / 0.42)), transparent 70%),
+    radial-gradient(38rem 26rem at 8% 0%, var(--sweep-b, rgb(124 77 255 / 0.26)), transparent 70%);
 }
 .public-shell::after {
   content: ""; position: absolute; top: 25rem; left: 34%; width: 110rem; height: 46rem; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(closest-side, rgb(58 40 190 / 0.3), transparent);
+  background: radial-gradient(closest-side, var(--sweep-c, rgb(58 40 190 / 0.3)), transparent);
   border-top: 1px solid rgb(143 168 255 / 0.2);
 }
 </style>

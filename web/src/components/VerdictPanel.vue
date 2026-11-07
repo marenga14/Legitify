@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { explorerUrl, registryAddress } from "../lib/config";
 import { dateLocale, t } from "../lib/i18n";
 import type { Verdict } from "../lib/registry";
 
@@ -25,10 +24,11 @@ const copy = computed(() => {
   <div role="status">
     <h2 :class="['text-2xl', copy.tone]">{{ copy.title }}</h2>
     <p class="mt-3 max-w-prose">{{ copy.body }}</p>
+    <p v-if="verdict.status !== 'not_found'" class="mt-1 text-ink-soft">{{ t("verdict.onNetwork", { network: verdict.network }) }}</p>
     <div class="mt-5 flex flex-wrap gap-3">
       <RouterLink v-if="verdict.status === 'not_found'" to="/request" class="btn">{{ t("verdict.ask") }}</RouterLink>
       <RouterLink v-if="verdict.replacedBy" :to="`/v/${verdict.replacedBy}`" class="btn">{{ t("verdict.current") }}</RouterLink>
-      <a v-if="explorerUrl && verdict.status !== 'not_found'" :href="`${explorerUrl}/address/${registryAddress}`" class="btn btn-quiet" rel="noopener">{{ t("verdict.record") }}</a>
+      <a v-if="verdict.status !== 'not_found'" :href="verdict.recordUrl" class="btn btn-quiet" rel="noopener">{{ t("verdict.record") }}</a>
     </div>
     <details v-if="fileHash || verdict.status !== 'not_found'" class="mt-5 text-ink-soft">
       <summary class="cursor-pointer">{{ t("verdict.technical") }}</summary>

@@ -1,6 +1,6 @@
 import { createWalletClient, custom, parseAbi, type Address, type Hex } from "viem";
 import { session } from "./api";
-import { chain, registryAddress } from "./config";
+import { chain, explorerUrl, isDevChain, registryAddress } from "./config";
 import { t } from "./i18n";
 import { client } from "./registry";
 
@@ -44,3 +44,38 @@ export const issue = (credentialId: Hex, fileHash: Hex) => send("issue", [creden
 export const addOperator = (account: Address) => send("addOperator", [account]);
 export const registerInstitution = (name: string, admin: Address) => send("registerInstitution", [name, admin]);
 export const setInstitutionActive = (id: number, active: boolean) => send("setInstitutionStatus", [id, active ? ACTIVE : SUSPENDED]);
+
+export const hasWallet = () => Boolean(window.ethereum);
+
+export async function connectWallet(): Promise<Address> {
+  if (!window.ethereum) throw new Error(t("errors.noWallet"));
+  try {
+    const [account] = await window.ethereum.request({ method: "eth_requestAccounts" });
+    return account;
+  } catch (e) {
+    throw friendly(e);
+  }
+}
+
+export async function signMessage(account: Address, message: string): Promise<Hex> {
+  try {
+    return await window.ethereum!.request({ method: "personal_sign", params: [message, account] });
+  } catch (e) {
+    throw friendly(e);
+  }
+}
+
+export async function addNetworkToWallet() {
+  if (!window.ethereum) throw new Error(t("errors.noWallet"));
+  try {
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: `0x${chain.id.toString(16)}`, chainName: chain.name, nativeCurrency: chain.nativeCurrency,
+        rpcUrls: chain.rpcUrls.default.http, ...(isDevChain ? {} : { blockExplorerUrls: [explorerUrl] }),
+      }],
+    });
+  } catch (e) {
+    throw friendly(e);
+  }
+}

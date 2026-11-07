@@ -14,7 +14,7 @@ const peak = computed(() => props.data.findIndex((d) => d.count === max.value));
     <figcaption class="font-semibold text-harbour">{{ title }}</figcaption>
     <p v-if="max === 0" class="mt-4 text-ink-soft">{{ t("dashboard.empty") }}</p>
     <template v-else>
-      <div class="mt-6 grid h-52 grid-cols-6 gap-3 border-b border-[#b8c7d1]" aria-hidden="true">
+      <div class="mt-6 grid h-52 grid-cols-6 gap-3 border-b border-line" aria-hidden="true">
         <div v-for="(d, i) in data" :key="d.month" tabindex="-1" class="group relative flex h-full items-end justify-center">
           <span v-if="i === peak" class="absolute text-sm font-semibold text-ink group-hover:opacity-0" :style="{ bottom: `calc(${(d.count / max) * 88}% + 0.25rem)` }">{{ d.count }}</span>
           <span class="tip">{{ monthName(d.month, "long") }}: {{ d.count }} {{ noun }}</span>

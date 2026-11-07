@@ -6,15 +6,50 @@ const NETWORKS = {
 } as const;
 
 const env = import.meta.env;
-export const chainId = Number(env.VITE_CHAIN_ID ?? 968);
+export const apiUrl: string = env.VITE_API_URL ?? "http://localhost:8787";
+
+interface Network { name: string; chainId: number; rpcUrl: string; explorerUrl: string; registry: string; hasLogo?: boolean }
+/**
+ * The platform admin can update these after deployment, so they're read when the page loads.
+ * Public checks don't otherwise need the API, so a slow or missing API must not stop them.
+ */
+const live: Partial<Network> & { others?: Network[] } = await fetch(`${apiUrl}/network`, { signal: AbortSignal.timeout(2500) })
+  .then((r) => (r.ok ? r.json() : {}))
+  .catch(() => ({}));
+
+export const chainId = live.chainId ?? Number(env.VITE_CHAIN_ID ?? 968);
 const network = NETWORKS[chainId as keyof typeof NETWORKS];
 
-export const networkName = network?.name ?? `Local chain ${chainId}`;
-export const explorerUrl: string | null = network?.explorer ?? null;
-export const rpcUrl: string = env.VITE_RPC_URL || network?.rpc || "http://127.0.0.1:8545";
-export const apiUrl: string = env.VITE_API_URL ?? "http://localhost:8787";
+/** A development chain isn't something the public should ever read about. */
+export const isDevChain = !network;
+export const networkName = isDevChain ? NETWORKS[677].name : live.name ?? network.name;
+export const explorerUrl: string = isDevChain ? NETWORKS[677].explorer : live.explorerUrl ?? network.explorer;
+export const botChainSite = "https://botchain.ai";
+export const rpcUrl: string = live.rpcUrl || env.VITE_RPC_URL || network?.rpc || "http://127.0.0.1:8545";
 export const contactEmail: string | undefined = env.VITE_CONTACT_EMAIL || undefined;
-export const registryAddress = (env.VITE_REGISTRY_ADDRESS || undefined) as Address | undefined;
+/** Shown in the site footer. */
+export const supportEmail: string = env.VITE_SUPPORT_EMAIL || "support@legitfy.dev";
+export const registryAddress = (live.registry || env.VITE_REGISTRY_ADDRESS || undefined) as Address | undefined;
+
+const logoFor = (n: { chainId: number; hasLogo?: boolean }) => (n.hasLogo ? `${apiUrl}/networks/${n.chainId}/logo` : null);
+
+export interface SearchedNetwork { name: string; chainId: number; rpcUrl: string; explorerUrl: string; registry: Address; logo: string | null }
+/** Other networks public checks search. Each was confirmed to hold our registry when it was added. */
+export const otherNetworks: SearchedNetwork[] = (live.others ?? []).map((n) => ({ ...n, registry: n.registry as Address, logo: logoFor(n) }));
+/** BOT Chain's own logo, from botchain.ai. A network without an uploaded logo shows its name only. */
+const mainLogo = logoFor({ chainId, hasLogo: live.hasLogo }) ?? (isDevChain || network ? "/chains/bot-chain.png" : null);
+export const shownNetworks: { name: string; explorerUrl: string; logo: string | null }[] = [
+  { name: networkName, explorerUrl, logo: mainLogo },
+  ...otherNetworks,
+];
+/** "BOT Chain and Base", in the reader's language. */
+export const networkList = (locale: string) =>
+  new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(shownNetworks.map((n) => n.name));
+
+/** What public pages show. On a development chain these are the public network's details. */
+export const shownChainId = isDevChain ? 677 : chainId;
+export const shownRpcUrl = isDevChain ? NETWORKS[677].rpc : rpcUrl;
+export const shownRegistry = isDevChain ? undefined : registryAddress;
 
 export const chain = defineChain({
   id: chainId,

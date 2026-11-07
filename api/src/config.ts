@@ -9,6 +9,7 @@ const schema = z.object({
   FILE_MASTER_KEY: z.string().regex(/^[0-9a-f]{64}$/, "64 hex chars"),
   CHAIN_ID: z.coerce.number().default(968),
   RPC_URL: z.string().default("https://rpc.bohr.life"),
+  EXPLORER_URL: z.string().default("https://scan.botchain.ai"),
   REGISTRY_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   ACCOUNT_FACTORY: z.string().default("0xBC88d6012b3bf8426C2851d3798cEB5257658332"),
   PAYMASTER_ADDRESS: z.string().optional(),
@@ -17,7 +18,17 @@ const schema = z.object({
   ANCHOR_PRIVATE_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   DAILY_SPONSOR_QUOTA: z.coerce.number().default(500),
+  TRUST_PROXY: z.stringbool().default(false),
 });
 
 export type Config = z.infer<typeof schema>;
-export const loadConfig = (): Config => schema.parse(process.env);
+
+/** Reads .env from the working directory. Variables already set in the environment win. */
+export function loadConfig(): Config {
+  try {
+    process.loadEnvFile();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  return schema.parse(process.env);
+}

@@ -12,6 +12,8 @@ export interface RoutingInput {
   risk: RiskLevel;
   confidence: number;
   registryStatus: string;
+  /** The registry says a different institution issued this file. */
+  otherIssuer?: boolean;
 }
 
 export interface Routing {
@@ -28,9 +30,12 @@ const CONFIDENCE_FLOOR = 0.5;
  * so an instruction hidden in a PDF has nothing to gain here.
  */
 export function routeAfterTriage(input: RoutingInput): Routing {
-  const { level, risk, confidence, registryStatus } = input;
+  const { level, risk, confidence, registryStatus, otherIssuer } = input;
   if (registryStatus === "revoked" || registryStatus === "suspended") {
     return { level: Math.max(level, 2), priority: "high", reason: `Registry shows this credential as ${registryStatus}` };
+  }
+  if (otherIssuer) {
+    return { level: Math.max(level, 2), priority: "high", reason: "Registry shows another institution issued this document" };
   }
   if (risk === "high") return { level: Math.max(level, 2), priority: "high", reason: "Agent flagged high risk" };
   if (confidence < CONFIDENCE_FLOOR) {

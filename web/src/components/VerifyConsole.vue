@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandMark from "./BrandMark.vue";
 import { computed, ref } from "vue";
 import type { Hex } from "viem";
 import { Check, CircleDashed, FileSearch, ScanLine, TriangleAlert, X } from "lucide-vue-next";
@@ -95,7 +96,7 @@ const status = computed(() => {
 
       <span class="sheet" aria-hidden="true">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <img src="/seal.jpg" alt="" class="crest crest-mark" />
+        <BrandMark class="crest brand-on-white" />
         <span class="sheet-name">{{ fileName || t("verify.yourDocument") }}</span>
         <span class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="beam"></span>
@@ -107,7 +108,7 @@ const status = computed(() => {
         <span class="status-icon"><component :is="status.icon" class="size-5" aria-hidden="true" /></span>
         <span class="min-w-0 text-left">
           <span class="block font-semibold leading-tight text-white">{{ status.title }}</span>
-          <span class="mt-0.5 block truncate text-sm text-ink-soft">{{ status.body }}</span>
+          <span class="status-body mt-0.5 block truncate text-sm">{{ status.body }}</span>
         </span>
       </span>
     </button>
@@ -138,7 +139,7 @@ const status = computed(() => {
   transition: transform 0.3s ease;
 }
 .scene:hover .sheet, .is-dragging .sheet { transform: rotateY(-10deg) rotateX(3deg) rotateZ(3deg) scale(1.02); }
-.crest { width: 34%; aspect-ratio: 1; }
+.crest { width: 26%; height: auto; margin-block: 0.4rem; }
 .sheet-name { margin-top: 3%; max-width: 100%; font-size: clamp(0.65rem, 1.2vw, 0.85rem); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lines { width: 100%; margin-top: 7%; display: grid; gap: 0.6rem; }
 .lines i { display: block; height: 0.42rem; border-radius: 3px; background: rgb(60 50 170 / 0.32); }
@@ -159,12 +160,16 @@ const status = computed(() => {
   background: radial-gradient(circle, rgb(124 77 255 / 0.3), rgb(10 9 48 / 0.55) 68%);
   box-shadow: 0 0 0 1px rgb(143 168 255 / 0.4), 0 0 0 14px rgb(143 168 255 / 0.05), 0 0 0 15px rgb(143 168 255 / 0.2), 0 0 50px rgb(124 77 255 / 0.5);
 }
+html[data-theme="light"] .print-disc { background: radial-gradient(circle, #fff 45%, #e7e4fb); }
 
 .status {
   right: 4%; bottom: 17%; display: flex; align-items: center; gap: 0.75rem; width: min(66%, 18rem); padding: 0.8rem 1rem;
   background: rgb(19 16 74 / 0.88); backdrop-filter: blur(10px); border: 1px solid rgb(143 168 255 / 0.45); border-radius: 12px;
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.45);
 }
+/* This card stays dark in both themes, so its text can't follow the page. */
+.status { color: #f4f5ff; }
+.status-body { color: #c9cdf0; }
 .status-icon { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: rgb(143 168 255 / 0.2); color: #dfe4ff; }
 .tone-good .status-icon { background: var(--color-approve); color: #06291b; }
 .tone-bad .status-icon { background: var(--color-seal); color: #3b0606; }

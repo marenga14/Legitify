@@ -18,8 +18,9 @@
   --color-harbour: #095073;
   --color-harbour-deep: #002d42;
   --color-sky: #a4def2;
-  --color-crest: #e9ebef;
   --color-lagoon: #1f7a78;
+  --color-wash: #f1f3f5;
+  --color-line: #cfd8de;
   --font-display: "Plus Jakarta Sans Variable", system-ui, sans-serif;
   --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -36,6 +37,43 @@ html.theme-console {
   --color-seal: #b3261e;
   --color-approve: #16794c;
   --color-caution: #8f6500;
+}
+
+/* The same two worlds, each with its opposite. A visitor's choice follows them across both. */
+html[data-theme="light"]:not(.theme-console) {
+  --color-paper: #f5f4fd;
+  --color-paper-deep: #e7e4fb;
+  --color-sheet: #ffffff;
+  --color-ink: #17124f;
+  --color-ink-soft: #4c4a7c;
+  --color-stamp: #5a33dc;
+  --color-stamp-deep: #4823bd;
+  --color-seal: #b3261e;
+  --color-approve: #0f7a4f;
+  --color-caution: #875600;
+  --color-periwinkle: #4258c9;
+  --sweep-a: rgb(124 77 255 / 0.16);
+  --sweep-b: rgb(143 168 255 / 0.22);
+  --sweep-c: rgb(143 168 255 / 0.14);
+  --accent-from: #6a3bf0;
+  --accent-to: #3f5fd8;
+}
+html.theme-console[data-theme="dark"] {
+  --color-paper: #071d29;
+  --color-paper-deep: #0d2c3b;
+  --color-sheet: #0e2a38;
+  --color-ink: #e4f2f8;
+  --color-ink-soft: #a9c7d6;
+  --color-stamp: #1f7ea8;
+  --color-stamp-deep: #17678b;
+  --color-seal: #ff9a9a;
+  --color-approve: #4fd6a0;
+  --color-caution: #f0c56a;
+  --color-harbour: #a4def2;
+  --color-sky: #0f3647;
+  --color-wash: #123445;
+  --color-line: #27495a;
+  --color-lagoon: #1b6f6d;
 }
 
 /* The Latin face has no CJK glyphs, and tight tracking crowds them. */
@@ -63,26 +101,45 @@ html:lang(zh) {
   .field { display: block; width: 100%; min-height: 2.75rem; padding: 0.5rem 0.8rem; background: var(--color-sheet); border: 1.5px solid color-mix(in srgb, var(--color-ink-soft) 55%, transparent); border-radius: 8px; }
   .link { color: var(--color-periwinkle); text-decoration: underline; text-underline-offset: 3px; }
   .hash { font-family: var(--font-mono); font-size: 0.82em; overflow-wrap: anywhere; }
-  /* The crest is a JPEG on pale grey. This takes the grey to white so `multiply` drops it. */
-  .crest-mark { mix-blend-mode: multiply; filter: brightness(1.14) contrast(1.5); }
+  .brand-top { fill: #190660; }
+  .brand-bottom { fill: #5d20fd; }
+  html[data-theme="dark"] .brand-top { fill: #fff; }
+  html[data-theme="dark"] .brand-bottom { fill: #8a5cff; }
+  /* For a mark sitting on something white, whatever the page's theme. */
+  html[data-theme] .brand-on-white .brand-top { fill: #190660; }
+  html[data-theme] .brand-on-white .brand-bottom { fill: #5d20fd; }
+  /* The wordmark from the logo, used as a mask so it takes the text colour in any theme. */
+  .brand-wordmark { display: inline-block; height: 1.3em; aspect-ratio: 719 / 225; background: currentColor; mask: url("/brand/wordmark.png") center / contain no-repeat; }
+  .brand-tile { display: grid; place-items: center; background: #efecfe; border-radius: 22%; }
+  html[data-theme="dark"] .brand-tile { background: #190660; }
   .glass { background: color-mix(in srgb, var(--color-paper-deep) 55%, transparent); border: 1px solid color-mix(in srgb, var(--color-periwinkle) 22%, transparent); border-radius: 14px; }
-  .text-verifiable { background: linear-gradient(95deg, #a06bff, #8fa8ff 75%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .btn-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 8px; cursor: pointer; }
+  .btn-icon:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+  .text-verifiable { background: linear-gradient(95deg, var(--accent-from, #a06bff), var(--accent-to, #8fa8ff) 75%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   /* The old dashboards: square-shouldered controls, gradient headers, dotted detail rules. */
   html.theme-console .btn { border-radius: 6px; font-size: 0.95rem; }
-  html.theme-console .field { border-radius: 6px; border-color: #b8c7d1; }
+  html.theme-console .field { border-radius: 6px; border-color: var(--color-line); }
   html.theme-console .link { color: var(--color-harbour); }
   .btn-view { min-height: 2.25rem; padding: 0.25rem 1.15rem; background: var(--color-lagoon); }
   .btn-view:hover { background: #17605e; }
-  .bg-gradient { background-image: linear-gradient(to right, var(--color-harbour), #3a76c4); color: #fff; }
-  .panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgb(9 80 115 / 0.14); }
+  .bg-gradient { background-image: linear-gradient(to right, #095073, #3a76c4); color: #fff; }
+  .panel { background: var(--color-sheet); border-radius: 8px; box-shadow: 0 1px 3px rgb(9 80 115 / 0.14); }
   .data-table { width: 100%; border-collapse: collapse; text-align: left; }
   .data-table th { padding: 0.8rem 1rem; font-weight: 600; white-space: nowrap; }
-  .data-table td { padding: 0.8rem 1rem; border-bottom: 1px solid #e3e7ea; }
-  .data-table tbody tr:nth-child(odd) td { background: #f7f8f9; }
+  .data-table td { padding: 0.8rem 1rem; border-bottom: 1px solid var(--color-line); }
+  .data-table tbody tr:nth-child(odd) td { background: color-mix(in srgb, var(--color-wash) 55%, transparent); }
   .data-table tbody tr:last-child td { border-bottom: 0; }
 }
 
+/* Added by v-reveal, so anything it doesn't reach simply stays visible. */
+.reveal { opacity: 0; transform: translateY(1.25rem); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.reveal.is-in { opacity: 1; transform: none; }
+.reveal .story-ridge { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 0.9s ease-out; }
+.reveal.is-in .story-ridge { stroke-dashoffset: 0; }
+
 @media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; }
+  .reveal .story-ridge { stroke-dashoffset: 0; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

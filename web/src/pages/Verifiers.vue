@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
+import StoryRows from "../components/StoryRows.vue";
 import { t } from "../lib/i18n";
 const results = computed(() => [
   { key: "issued", tone: "text-approve" },
@@ -19,6 +20,7 @@ const results = computed(() => [
       <RouterLink to="/verify" class="btn">{{ t("verifiers.check") }}</RouterLink>
       <RouterLink to="/request" class="btn btn-quiet">{{ t("verifiers.ask") }}</RouterLink>
     </div>
+    <StoryRows class="mt-16" :rows="['check', 'ask']" />
     <h2 class="mt-16 text-4xl">{{ t("verifiers.results") }}</h2>
     <dl class="glass mt-6 max-w-4xl px-6">
       <div v-for="r in results" :key="r.title" class="grid gap-1 border-b border-periwinkle/15 py-4 last:border-0 sm:grid-cols-[12rem_1fr]">

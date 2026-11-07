@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { session, type Role } from "./lib/api";
 import { t } from "./lib/i18n";
+import { applyTheme } from "./lib/theme";
 
 declare module "vue-router" {
   interface RouteMeta { title?: string; roles?: Role[] }
@@ -9,6 +10,9 @@ declare module "vue-router" {
 const page = (name: string) => () => import(`./pages/${name}.vue`);
 const console_ = (name: string) => () => import(`./pages/console/${name}.vue`);
 const STAFF: Role[] = ["admin", "operator"];
+
+/** Exact, because public paths such as /apply also begin with "/app". */
+export const isConsolePath = (path: string) => path === "/app" || path.startsWith("/app/");
 
 export const homeFor = (role?: Role) => (!role ? "/sign-in" : role === "platform" ? "/app/platform" : "/app/dashboard");
 
@@ -20,11 +24,16 @@ export const router = createRouter({
     { path: "/institutions", component: page("Institutions"), meta: { title: "institutions" } },
     { path: "/verifiers", component: page("Verifiers"), meta: { title: "verifiers" } },
     { path: "/developers", component: page("Developers"), meta: { title: "developers" } },
+    { path: "/why", component: page("Why"), meta: { title: "why" } },
+    { path: "/how-it-works", component: page("HowItWorks"), meta: { title: "how" } },
+    { path: "/security", component: page("Security"), meta: { title: "security" } },
     { path: "/verify", component: page("Verify"), meta: { title: "verify" } },
     { path: "/v/:id", component: page("Credential"), meta: { title: "credential" } },
     { path: "/request", component: page("RequestNew"), meta: { title: "request" } },
     { path: "/track/:token", component: page("RequestTrack"), meta: { title: "track" } },
     { path: "/shared/:token", component: page("Shared"), meta: { title: "shared" } },
+    { path: "/apply", component: page("Apply"), meta: { title: "apply" } },
+    { path: "/apply/:token", component: page("ApplyTrack"), meta: { title: "applyTrack" } },
     { path: "/sign-in", component: page("SignIn"), meta: { title: "signIn" } },
     {
       path: "/app",
@@ -39,6 +48,8 @@ export const router = createRouter({
         { path: "operators", component: console_("Operators"), meta: { title: "operators", roles: ["admin"] } },
         { path: "settings", component: console_("Settings"), meta: { title: "settings", roles: ["platform", ...STAFF] } },
         { path: "platform", component: console_("PlatformDashboard"), meta: { title: "dashboard", roles: ["platform"] } },
+        { path: "platform/applications", component: console_("PlatformApplications"), meta: { title: "platformApplications", roles: ["platform"] } },
+        { path: "platform/applications/:id", component: console_("PlatformApplicationDetail"), meta: { title: "platformApplications", roles: ["platform"] } },
         { path: "platform/institutions", component: console_("PlatformInstitutions"), meta: { title: "platformInstitutions", roles: ["platform"] } },
       ],
     },
@@ -48,7 +59,8 @@ export const router = createRouter({
 
 // A convenience only: the API checks the role on every call.
 router.beforeEach((to) => {
-  document.documentElement.classList.toggle("theme-console", to.path.startsWith("/app"));
+  document.documentElement.classList.toggle("theme-console", isConsolePath(to.path));
+  applyTheme(isConsolePath(to.path));
   const roles = to.meta.roles;
   if (!roles) return;
   const role = session.current?.role;
@@ -56,6 +68,6 @@ router.beforeEach((to) => {
   if (!roles.includes(role)) return homeFor(role);
 });
 export function showTitle(key: string) {
-  document.title = key === "home" ? "Legitify" : `${t(`titles.${key}`)} | Legitify`;
+  document.title = key === "home" ? "Legitfy" : `${t(`titles.${key}`)} | Legitfy`;
 }
 router.afterEach((to) => showTitle(to.meta.title ?? "home"));

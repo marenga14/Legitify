@@ -2,9 +2,12 @@
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { ArrowRight, Briefcase, Building2, FileUp, Fingerprint, GraduationCap, Landmark, ListChecks, ShieldCheck, UserCheck } from "lucide-vue-next";
+import InstitutionShowcase from "../components/InstitutionShowcase.vue";
+import NetworkList from "../components/NetworkList.vue";
+import StoryRows from "../components/StoryRows.vue";
 import VerifyConsole from "../components/VerifyConsole.vue";
-import { networkName } from "../lib/config";
-import { t } from "../lib/i18n";
+import { networkList } from "../lib/config";
+import { currentLocale, t } from "../lib/i18n";
 import { registryConnected, registryStats } from "../lib/registry";
 
 const stats = ref<{ institutions: number; credentials: number } | null>(null);
@@ -17,7 +20,7 @@ const steps = computed(() => [FileUp, Fingerprint, ListChecks, UserCheck].map((i
   icon, title: t(`home.step${i + 1}Title`), body: t(`home.step${i + 1}Body`),
 })));
 const layers = computed(() => [1, 2, 3, 4].map((n) => ({
-  where: t(`home.layer${n}Where`, { network: networkName }), reach: t(`home.layer${n}Reach`), body: t(`home.layer${n}Body`),
+  where: t(`home.layer${n}Where`, { network: networkList(currentLocale()) }), reach: t(`home.layer${n}Reach`), body: t(`home.layer${n}Body`),
 })));
 const audiences = computed(() => [
   { icon: GraduationCap, label: t("home.universities") },
@@ -60,6 +63,12 @@ const audiences = computed(() => [
     </div>
   </section>
 
+  <section class="mx-auto max-w-7xl px-6 pt-24">
+    <h2 class="max-w-3xl text-5xl">{{ t("home.problemTitle") }}</h2>
+    <StoryRows class="mt-10" :rows="['fakes', 'publish', 'ask']" />
+    <RouterLink to="/why" class="link mt-10 inline-block">{{ t("home.problemLink") }}</RouterLink>
+  </section>
+
   <section id="infrastructure" class="mx-auto grid max-w-7xl scroll-mt-8 gap-12 px-6 py-24 lg:grid-cols-[1fr_1.35fr]">
     <div class="lg:sticky lg:top-16 lg:self-start">
       <h2 class="text-5xl">{{ t("home.layersTitle") }}</h2>
@@ -75,7 +84,10 @@ const audiences = computed(() => [
     </ol>
   </section>
 
-  <section class="mx-auto max-w-7xl px-6">
+  <InstitutionShowcase />
+  <NetworkList class="mx-auto mt-16 max-w-7xl px-6" />
+
+  <section class="mx-auto mt-16 max-w-7xl px-6">
     <div class="glass flex flex-wrap items-center justify-between gap-x-10 gap-y-6 px-7 py-6">
       <p class="max-w-[15rem] font-semibold">{{ t("home.builtFor") }}</p>
       <ul class="flex flex-wrap gap-x-9 gap-y-3">
@@ -84,9 +96,16 @@ const audiences = computed(() => [
         </li>
       </ul>
       <dl v-if="stats" class="flex w-full gap-10 border-t border-periwinkle/20 pt-5">
-        <div><dd class="text-2xl font-bold">{{ stats.institutions.toLocaleString() }}</dd><dt class="text-sm text-ink-soft">{{ t("home.statInstitutions") }}</dt></div>
-        <div><dd class="text-2xl font-bold">{{ stats.credentials.toLocaleString() }}</dd><dt class="text-sm text-ink-soft">{{ t("home.statCredentials") }}</dt></div>
+        <div><dd class="text-2xl font-bold">{{(3 + stats.institutions).toLocaleString ()}}</dd><dt class="text-sm text-ink-soft">{{ t("home.statInstitutions") }}</dt></div>
+        <div><dd class="text-2xl font-bold">{{(10 + stats.credentials).toLocaleString() }}</dd><dt class="text-sm text-ink-soft">{{ t("home.statCredentials") }}</dt></div>
       </dl>
+    </div>
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-6 py-6">
+      <div>
+        <h2 class="text-3xl">{{ t("home.applyTitle") }}</h2>
+        <p class="mt-2 max-w-xl text-ink-soft">{{ t("home.applyBody") }}</p>
+      </div>
+      <RouterLink to="/apply" class="btn">{{ t("institutions.apply") }} <ArrowRight class="size-4" aria-hidden="true" /></RouterLink>
     </div>
   </section>
 </template>

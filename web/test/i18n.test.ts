@@ -53,6 +53,14 @@ describe("server messages", () => {
   });
 });
 
+describe("brand name", () => {
+  it('is spelled "Legitfy" in every language', () => {
+    const all = JSON.stringify([en, sw, zh, serverErrors]);
+    expect(all).toContain("Legitfy");
+    expect(all.toLowerCase()).not.toContain("legitify");
+  });
+});
+
 describe("Swahili wording", () => {
   it('says "akaunti" for a wallet, never "pochi"', () => {
     const all = JSON.stringify([sw, Object.values(serverErrors).map((e) => e.sw)]);

@@ -40,5 +40,6 @@ async function signIn() {
     <button class="btn mt-6" :disabled="!hasWallet || busy" @click="signIn">{{ busy ? t("common.waitingWallet") : t("signIn.button") }}</button>
     <p v-if="!hasWallet" class="mt-4 text-ink-soft">{{ t("signIn.noWallet") }}</p>
     <p v-if="error" class="mt-4 text-seal" role="alert">{{ error }}</p>
+    <p class="mt-6 text-ink-soft">{{ t("signIn.newHere") }} <RouterLink to="/apply" class="link">{{ t("institutions.apply") }}</RouterLink></p>
   </section>
 </template>

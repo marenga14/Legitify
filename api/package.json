@@ -3,12 +3,11 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "anchor": "tsx src/anchor-job.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

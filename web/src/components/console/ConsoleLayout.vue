@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
-import { Building2, FileText, Inbox, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-vue-next";
+import { Building2, ClipboardList, FileText, Inbox, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-vue-next";
 import { api, session, setSession } from "../../lib/api";
+import BrandMark from "../BrandMark.vue";
+import BrandWordmark from "../BrandWordmark.vue";
 import { t } from "../../lib/i18n";
 import LanguageSwitch from "../LanguageSwitch.vue";
+import ThemeToggle from "../ThemeToggle.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -17,6 +20,7 @@ const nav = computed(() => {
   const role = session.current?.role;
   if (role === "platform") return [
     { to: "/app/platform", label: t("console.nav.dashboard"), icon: LayoutDashboard, exact: true },
+    { to: "/app/platform/applications", label: t("console.nav.applications"), icon: ClipboardList },
     { to: "/app/platform/institutions", label: t("console.nav.institutions"), icon: Building2 },
     { to: "/app/settings", label: t("console.nav.settings"), icon: Settings },
   ];
@@ -60,37 +64,38 @@ async function signOut() {
 </script>
 
 <template>
-  <a href="#console-main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:bg-white focus:p-3">{{ t("nav.skip") }}</a>
+  <a href="#console-main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:bg-sheet focus:p-3">{{ t("nav.skip") }}</a>
   <div class="min-h-screen lg:grid lg:grid-cols-[17rem_1fr]">
     <div v-if="open" class="fixed inset-0 z-30 bg-harbour-deep/50 lg:hidden" @click="open = false"></div>
     <aside :class="[open ? 'flex' : 'hidden', 'fixed inset-y-0 left-0 z-40 m-2 w-64 flex-col overflow-hidden rounded-md bg-sky lg:sticky lg:top-2 lg:flex lg:h-[calc(100vh-1rem)] lg:w-auto']">
-      <div class="relative flex justify-center bg-crest py-2">
-        <RouterLink to="/app" :aria-label="t('console.home')"><img src="/seal.jpg" alt="" class="crest-mark size-24" /></RouterLink>
+      <div class="relative flex justify-center bg-sheet py-6">
+        <RouterLink to="/app" class="flex items-center gap-3 text-3xl font-bold tracking-tight text-ink" :aria-label="t('console.home')"><BrandMark class="h-10 w-auto" /><BrandWordmark class="text-3xl" /></RouterLink>
         <button class="absolute right-2 top-2 rounded p-1 text-harbour lg:hidden" :aria-label="t('console.closeMenu')" @click="open = false"><X class="size-5" aria-hidden="true" /></button>
       </div>
       <nav class="mt-3 flex-1 space-y-1 overflow-y-auto px-2" :aria-label="t('console.label')">
-        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" :class="['flex items-center gap-3 rounded px-3 py-2.5 font-semibold', isActive(item) ? 'bg-harbour text-white' : 'text-harbour hover:bg-white/45']" :aria-current="isActive(item) ? 'page' : undefined">
+        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" :class="['flex items-center gap-3 rounded px-3 py-2.5 font-semibold', isActive(item) ? 'bg-stamp text-white' : 'text-harbour hover:bg-white/45']" :aria-current="isActive(item) ? 'page' : undefined">
           <span class="grid size-6 place-items-center rounded-full border-2 border-current"><component :is="item.icon" class="size-3.5" aria-hidden="true" /></span>
           {{ item.label }}
         </RouterLink>
       </nav>
-      <div v-if="storage !== null" class="m-3 rounded-md bg-white p-4 text-harbour shadow">
+      <div v-if="storage !== null" class="m-3 rounded-md bg-sheet p-4 text-harbour shadow">
         <p class="text-sm">{{ t("console.storage") }}</p>
         <p class="text-xl font-bold">{{ size }}</p>
       </div>
     </aside>
 
     <div class="min-w-0">
-      <header class="m-2 flex items-center justify-between gap-3 rounded-md bg-white px-4 py-2 shadow-sm">
+      <header class="m-2 flex items-center justify-between gap-3 rounded-md bg-sheet px-4 py-2 shadow-sm">
         <div class="flex min-w-0 items-center gap-3">
           <button class="rounded p-1 text-harbour lg:hidden" :aria-label="t('console.openMenu')" :aria-expanded="open" @click="open = true"><Menu class="size-6" aria-hidden="true" /></button>
           <p class="min-w-0 leading-tight">
-            <span class="block text-xl font-bold text-ink">Legitify</span>
+            <BrandWordmark class="block text-xl text-ink lg:hidden" />
             <span class="block truncate font-semibold text-approve">{{ isStaff ? institution : t("console.platform") }}</span>
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-2 text-harbour">
           <LanguageSwitch />
+          <ThemeToggle />
           <button class="rounded p-2 hover:bg-paper-deep" :aria-label="t('console.signOut')" :title="t('console.signOut')" @click="signOut"><LogOut class="size-5" aria-hidden="true" /></button>
         </div>
       </header>

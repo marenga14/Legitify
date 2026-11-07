@@ -11,7 +11,7 @@ interface Triage {
 }
 interface Req {
   id: string; subject: string; purpose: string; requester_org: string; requester_email: string; status: string; level: number;
-  escalation_reason: string | null; registry_status: string; registry_institution: string | null; triage_status: string;
+  escalation_reason: string | null; registry_status: string; registry_institution: string | null; registry_other_issuer: boolean; triage_status: string;
   triage: Triage | null; consent_agent: boolean; file_name: string; answer_outcome: string | null; answer_note: string | null; receipt_hash: string | null;
 }
 const level = (n: number) => t(`levels.${n}`);
@@ -86,6 +86,7 @@ const agentNote = computed(() => {
 
         <h2 class="mt-6 text-xl">{{ t("detail.publicRecord") }}</h2>
         <p class="mt-2">{{ t(`detail.registry.${r.registry_status}`) }}</p>
+        <p v-if="r.registry_other_issuer" class="mt-2 font-semibold text-seal">{{ t("detail.registryOther", { institution: r.registry_institution }) }}</p>
 
         <h2 class="mt-6 text-xl">{{ t("detail.agent") }}</h2>
         <p v-if="agentNote" class="mt-2 text-ink-soft">{{ agentNote }}</p>

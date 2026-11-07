@@ -28,9 +28,10 @@ const cards = computed(() => {
 <template>
   <PageHead :title="t('platform.dashboard')" />
   <p v-if="error" class="mt-4 text-seal" role="alert">{{ error }}</p>
+  <RouterLink v-if="data?.pendingApplications" to="/app/platform/applications" class="panel mt-4 block p-4 font-semibold text-harbour hover:shadow-md">{{ t("platform.pending", { n: data.pendingApplications }) }}</RouterLink>
   <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <div v-for="c in cards" :key="c.name" class="panel overflow-hidden">
-      <p class="border-b border-[#dfe5e9] bg-[#f1f3f5] px-4 py-2.5 text-lg font-bold text-harbour">{{ c.name }}</p>
+      <p class="border-b border-line bg-wash px-4 py-2.5 text-lg font-bold text-harbour">{{ c.name }}</p>
       <p class="py-6 text-center text-6xl font-extrabold text-harbour">{{ c.number.toLocaleString() }}</p>
     </div>
   </div>
