@@ -1,6 +1,5 @@
-import type { Transaction } from "@electric-sql/pglite";
 import { sha256Hex } from "./crypto.js";
-import type { Db } from "./db.js";
+import type { Db, Queryable } from "./db.js";
 
 const GENESIS = "0".repeat(64);
 
@@ -16,8 +15,9 @@ const hashEntry = (prev: string, e: Omit<Entry, "detail"> & { detailHash: string
   sha256Hex(JSON.stringify([prev, e.requestId, e.institutionId, e.actor, e.action, e.detailHash, e.createdAt]));
 
 /** Append-only hash chain. Details are hashed so the log itself holds no personal data. */
-export async function appendAudit(db: Db | Transaction, entry: Entry): Promise<string> {
-  const write = async (tx: Db | Transaction) => {
+/** Always in a transaction: the advisory lock below only holds for one. */
+export async function appendAudit(db: Db | Queryable, entry: Entry): Promise<string> {
+  const write = async (tx: Queryable) => {
     await tx.query("SELECT pg_advisory_xact_lock(1)");
     const last = await tx.query<{ entry_hash: string }>("SELECT entry_hash FROM audit_log ORDER BY seq DESC LIMIT 1");
     const prev = last.rows[0]?.entry_hash ?? GENESIS;
@@ -31,7 +31,7 @@ export async function appendAudit(db: Db | Transaction, entry: Entry): Promise<s
     );
     return entryHash;
   };
-  return "transaction" in db ? db.transaction(write) as Promise<string> : write(db);
+  return "transaction" in db ? (db as Db).transaction(write) : write(db);
 }
 
 interface Row {

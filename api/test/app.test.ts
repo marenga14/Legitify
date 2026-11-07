@@ -9,7 +9,7 @@ import { anchorYesterday } from "../src/anchor.js";
 import { appendAudit, dailyRoot, verifyAuditChain } from "../src/audit.js";
 import { createApp, runSlaSweep, syncInstitutions, type Deps } from "../src/app.js";
 import type { Chain, Member, RegistryMatch } from "../src/chain.js";
-import { openDb, type Db } from "../src/db.js";
+import { openDb, openPostgres, type Db } from "../src/db.js";
 
 const PDF = "%PDF-1.7 confidential certificate of Asha";
 const accountFor = (owner: string) => `0xacc${owner.slice(5).toLowerCase()}` as Address;
@@ -18,7 +18,8 @@ const uniAAdmin = privateKeyToAccount(`0x${"a2".repeat(32)}`);
 const uniB = privateKeyToAccount(`0x${"b1".repeat(32)}`);
 const stranger = privateKeyToAccount(`0x${"c1".repeat(32)}`);
 const platformKey = privateKeyToAccount(`0x${"d1".repeat(32)}`);
-const CRED_ID = `0x${"ab".repeat(32)}`;
+const CRED_CODE = "UD-26-7K4Q9-XPM2C";
+const CRED_ID = "0x30bd3254f2da77378bb4e9149befcf14514fdb3f1bbb4dd967c0553070340d27";
 
 const triage = (over: Partial<Triage> = {}): Triage => ({
   documentType: "degree", claimedIssuer: "University A", credentialTitle: "BSc", issueDate: "2020-11-01",
@@ -26,6 +27,16 @@ const triage = (over: Partial<Triage> = {}): Triage => ({
 });
 
 let db: Db;
+
+/** Set TEST_DATABASE_URL to run this whole suite against real Postgres. It wipes that database. */
+async function freshDb() {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url) return openDb();
+  const reset = await openPostgres(url);
+  await reset.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+  await reset.close();
+  return openPostgres(url);
+}
 let members: Map<string, Member>;
 let match: RegistryMatch;
 let triager: ReturnType<typeof vi.fn<Triager>>;
@@ -36,7 +47,8 @@ let app: ReturnType<typeof createApp>;
 let dataDir: string;
 
 beforeEach(async () => {
-  db = await openDb();
+  await db?.close();
+  db = await freshDb();
   dataDir = await mkdtemp(path.join(tmpdir(), "legitify-"));
   members = new Map([
     [accountFor(uniA.address), { institutionId: 1, role: "operator" }],
@@ -283,6 +295,7 @@ describe("staff addresses", () => {
 describe("institution applications", () => {
   const applicant = privateKeyToAccount(`0x${"e1".repeat(32)}`);
   const SEALED = "%PDF-1.7 signed and sealed";
+  const ID_NUMBER = "TZ-19900101-12345";
   async function apply(over: Record<string, string> = {}, file = new File([PDF], "reg.pdf"), signer = applicant) {
     const institutionName = over.institutionName ?? "Mbeya College";
     const { nonce, message } = await (await app.request("/applications/challenge", {
@@ -292,7 +305,7 @@ describe("institution applications", () => {
     const fields = {
       institutionName, registrationNumber: "REG-123", institutionType: "college", country: "Tanzania", city: "Mbeya",
       officialEmail: "registrar@mbeya.example", phone: "+255 700 000 000", applicantName: "Neema J", applicantPosition: "Registrar", applicantEmail: "neema@mbeya.example",
-      signatoryName: "Dr Baraka M", signatoryTitle: "Principal", confirmed: "true", nonce, signature: await signer.signMessage({ message }), ...over,
+      signatoryName: "Dr Baraka M", signatoryTitle: "Principal", identityDocument: "passport", identityNumber: ID_NUMBER, identityConsent: "true", confirmed: "true", nonce, signature: await signer.signMessage({ message }), ...over,
     };
     for (const [k, v] of Object.entries(fields)) form.set(k, v);
     form.set("file", file);
@@ -313,6 +326,47 @@ describe("institution applications", () => {
     expect(await track(trackingToken)).toMatchObject({ status: "awaiting_mandate", wallet: applicant.address, signatoryName: "Dr Baraka M", applicantEmail: "neema@mbeya.example" });
     const stored = await readFile(path.join(dataDir, "files", `${await pendingId()}-registration.bin`));
     expect(stored.includes(Buffer.from("confidential"))).toBe(false);
+  });
+  it("requires the applicant's ID type, number and consent", async () => {
+    expect((await apply({ identityNumber: "" })).status).toBe(400);
+    expect((await apply({ identityConsent: "false" })).status).toBe(400);
+    expect((await apply({ identityDocument: "library_card" })).status).toBe(400);
+    expect((await db.query("SELECT 1 FROM applications")).rows).toEqual([]);
+  });
+  it("encrypts the ID number and shows it to reviewers only, on the audit trail", async () => {
+    const { trackingToken } = await (await apply()).json();
+    const id = await pendingId();
+    const stored = await db.query<{ identity_number: string }>("SELECT identity_number FROM applications");
+    expect(stored.rows[0]!.identity_number).not.toContain(ID_NUMBER);
+    expect(JSON.stringify(await track(trackingToken))).not.toContain(ID_NUMBER);
+    const staff = await login(uniAAdmin);
+    expect((await app.request(`/platform/applications/${id}/identity`, authed(staff.token))).status).toBe(403);
+    const owner = await login(platformKey);
+    const detail = await (await app.request(`/platform/applications/${id}`, authed(owner.token))).json();
+    expect(detail).toMatchObject({ identity_document: "passport" });
+    expect(detail.identity_number).toBeUndefined();
+    expect(await (await app.request(`/platform/applications/${id}/identity`, authed(owner.token))).json()).toEqual({ document: "passport", number: ID_NUMBER });
+    expect((await db.query("SELECT 1 FROM audit_log WHERE action = 'application.identity_viewed'")).rows).toHaveLength(1);
+  });
+  it("erases personal data and files on rejection, keeping only the decision", async () => {
+    const { trackingToken } = await (await apply()).json();
+    await upload(trackingToken);
+    const id = await pendingId();
+    const owner = await login(platformKey);
+    await app.request(`/platform/applications/${id}/reject`, authed(owner.token, { reason: "No such registration" }));
+
+    const { rows } = await db.query<Record<string, unknown>>("SELECT * FROM applications");
+    const row = JSON.stringify(rows[0]);
+    for (const personal of ["Neema", "Registrar", "neema@", "registrar@", "Baraka", "Principal", "+255", applicant.address, "passport"]) expect(row).not.toContain(personal);
+    expect(rows[0]).toMatchObject({ status: "rejected", identity_number: null, identity_consent_at: null, wallet: "", review_reason: "No such registration" });
+    expect((await readdir(path.join(dataDir, "files"))).filter((f) => f.startsWith(id))).toEqual([]);
+
+    const tracked = await track(trackingToken);
+    expect(tracked).toMatchObject({ status: "rejected", reviewReason: "No such registration", institutionName: "Mbeya College", applicantName: "" });
+    expect((await app.request(`/platform/applications/${id}/files/registration`, authed(owner.token))).status).toBe(404);
+    expect((await app.request(`/platform/applications/${id}/identity`, authed(owner.token))).status).toBe(404);
+    const audit = await db.query<{ actor: string }>("SELECT actor FROM audit_log");
+    expect(JSON.stringify(audit.rows)).not.toContain(applicant.address);
   });
   it("refuses a signature made for another institution", async () => {
     const { nonce } = await (await app.request("/applications/challenge", {
@@ -601,6 +655,47 @@ describe("audit log", () => {
   });
 });
 
+describe("request history", () => {
+  let account = "";
+  const history = async (token: string) => (await app.request("/inbox/history", authed(token))).json();
+  const resolved = async () => {
+    const { token, body } = await login(uniAAdmin);
+    account = body.account;
+    await db.query(
+      "INSERT INTO staff (account, institution_id, name, position) VALUES ($1, 1, 'Asha Mushi', 'Registrar') ON CONFLICT (account) DO UPDATE SET name = 'Asha Mushi', position = 'Registrar'",
+      [account],
+    );
+    const { id } = await (await submit()).json();
+    await app.request(`/requests/${id}/answer`, authed(token, { outcome: "not_confirmed", note: "No such graduate" }));
+    return { token, id };
+  };
+
+  it("lists answered requests with who resolved them and how, for that institution only", async () => {
+    const { token, id } = await resolved();
+    const rows = await history(token);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id, answer_outcome: "not_confirmed", answered_by: account, answered_by_name: "Asha Mushi", answered_by_position: "Registrar" });
+    expect(await history((await login(uniB)).token)).toEqual([]);
+  });
+  it("never reports a chain record that doesn't exist", async () => {
+    const { token } = await resolved();
+    expect((await history(token))[0].chain).toMatchObject({ status: "off", txHash: null });
+  });
+  it("shows the transaction once a fingerprint covers the answer", async () => {
+    const { token, id } = await resolved();
+    const hash = `0x${"cd".repeat(32)}` as const;
+    const target = { rootOf: async () => `0x${"0".repeat(64)}` as const, anchor: async () => hash };
+    expect(await anchorYesterday(db, target, new Date(Date.now() + 86_400_000))).toBe("anchored");
+    expect((await history(token))[0].chain).toMatchObject({ status: "anchored", txHash: hash });
+    expect((await (await app.request(`/requests/${id}`, authed(token))).json()).chain.status).toBe("anchored");
+  });
+  it("doesn't count a fingerprint from before the answer", async () => {
+    await db.query("INSERT INTO audit_anchors (day, root) VALUES (1, '0xaa')");
+    const { token } = await resolved();
+    expect((await history(token))[0].chain.status).toBe("off");
+  });
+});
+
 describe("audit anchoring", () => {
   const NOW = new Date("2026-03-02T09:00:00Z");
   const target = () => {
@@ -639,12 +734,142 @@ describe("sponsorship endpoint", () => {
   });
 });
 
-async function createCredential(token: string, content = PDF) {
+async function createCredential(token: string, content = PDF, code = CRED_CODE, sealed = "true") {
   const form = new FormData();
-  form.set("credentialId", CRED_ID); form.set("ownerName", "Asha M"); form.set("title", "BSc");
+  form.set("code", code); form.set("sealed", sealed); form.set("ownerName", "Asha M"); form.set("title", "BSc");
   form.set("file", new File([content], "c.pdf", { type: "application/pdf" }));
   return app.request("/credentials", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
 }
+
+describe("institution seals", () => {
+  const put = (token: string, body: unknown) =>
+    app.request("/institution/seal", { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  const seal = async (token: string) => (await (await app.request("/me", authed(token))).json()).seal;
+
+  it("gives each institution a seal without anyone choosing one", async () => {
+    const a = await seal((await login(uniA)).token);
+    const b = await seal((await login(uniB)).token);
+    expect(a.design).toBeTruthy();
+    expect(a.colour).toBeTruthy();
+    expect(a).not.toEqual(b);
+  });
+  it("lets the admin change the seal and keeps the choice", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await put(token, { design: "plaque", colour: "red" })).status).toBe(200);
+    expect(await seal(token)).toMatchObject({ design: "plaque", colour: "red", qr: "inside" });
+  });
+  it("saves wording, QR and placement choices", async () => {
+    const { token } = await login(uniAAdmin);
+    const options = { design: "classic", colour: "blue", initials: "UD", topText: "Chuo Kikuu", poBox: "P.O. Box 35091", showDate: true, qr: "separate", position: "top-left", arrangement: "vertical" };
+    expect((await put(token, options)).status).toBe(200);
+    expect(await seal(token)).toMatchObject(options);
+    expect((await put(token, { ...options, initials: "TOO LONG" })).status).toBe(400);
+  });
+  it("stores uploaded seals and emblems for that institution's staff", async () => {
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    const send = (token: string, kind: string, file: File) => {
+      const form = new FormData();
+      form.set("file", file);
+      return app.request(`/institution/seal-image/${kind}`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+    };
+    const admin = await login(uniAAdmin);
+    const operator = await login(uniA);
+    expect((await send(operator.token, "emblem", new File([PNG], "e.png"))).status).toBe(403);
+    expect((await send(admin.token, "emblem", new File(["not an image"], "e.png"))).status).toBe(400);
+    expect((await send(admin.token, "crest", new File([PNG], "e.png"))).status).toBe(404);
+    expect((await send(admin.token, "emblem", new File([PNG], "e.png"))).status).toBe(200);
+    expect((await (await app.request("/me", authed(operator.token))).json()).sealImages).toEqual({ seal: false, emblem: true });
+    const image = await app.request("/institution/seal-image/emblem", authed(operator.token));
+    expect(Buffer.from(await image.arrayBuffer()).equals(PNG)).toBe(true);
+    const other = await login(uniB);
+    expect((await app.request("/institution/seal-image/emblem", authed(other.token))).status).toBe(404);
+    await app.request("/institution/seal-image/emblem", { method: "DELETE", headers: { authorization: `Bearer ${admin.token}` } });
+    expect((await app.request("/institution/seal-image/emblem", authed(operator.token))).status).toBe(404);
+  });
+  it("shows staff their logo before it's public", async () => {
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    const { token } = await login(uniAAdmin);
+    expect((await app.request("/institution/logo", authed(token))).status).toBe(404);
+    const form = new FormData();
+    form.set("file", new File([PNG], "logo.png"));
+    await app.request("/institution/logo", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+    expect((await app.request("/institution/logo", authed(token))).status).toBe(200);
+    expect((await app.request("/institutions/1/logo")).status).toBe(404);
+  });
+  it("refuses unknown designs", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await put(token, { design: "crest", colour: "red" })).status).toBe(400);
+  });
+  it("keeps operators out", async () => {
+    const { token } = await login(uniA);
+    expect((await put(token, { design: "plaque", colour: "red" })).status).toBe(403);
+  });
+});
+
+describe("institution profile", () => {
+  const evidence = (fields: Record<string, string>, file: File | null = new File([PDF], "proof.pdf")) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) form.set(k, v);
+    if (file) form.set("file", file);
+    return form;
+  };
+  const ask = (token: string, form: FormData) =>
+    app.request("/institution/changes", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+  const details = async (token: string) => (await app.request("/institution/details", authed(token))).json();
+  const request = { field: "city", value: "Arusha", reason: "We moved campus" };
+  const putContacts = (token: string, body: unknown) =>
+    app.request("/institution/details", { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  const contacts = { website: "https://uni.example", phone: "+255 700 000 000", officialEmail: "registrar@uni.example" };
+  beforeEach(async () => {
+    await db.query("UPDATE institutions SET city = 'Mbeya', country = 'Tanzania', location = 'Mbeya, Tanzania' WHERE id = 1");
+  });
+
+  it("lets the admin edit contact details directly", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await putContacts(token, contacts)).status).toBe(200);
+    expect(await details(token)).toMatchObject({ website: contacts.website, official_email: contacts.officialEmail });
+  });
+  it("refuses a website that isn't a web address, and keeps operators out", async () => {
+    const admin = await login(uniAAdmin);
+    expect((await putContacts(admin.token, { ...contacts, website: "javascript:alert(1)" })).status).toBe(400);
+    const operator = await login(uniA);
+    expect((await putContacts(operator.token, contacts)).status).toBe(403);
+    expect((await ask(operator.token, evidence(request))).status).toBe(403);
+  });
+  it("needs evidence and allows one open request per detail", async () => {
+    const { token } = await login(uniAAdmin);
+    expect((await ask(token, evidence(request, null))).status).toBe(400);
+    expect((await ask(token, evidence({ ...request, field: "name" }))).status).toBe(400);
+    expect((await ask(token, evidence({ ...request, field: "institution_type", value: "castle" }))).status).toBe(400);
+    expect((await ask(token, evidence(request))).status).toBe(201);
+    expect((await ask(token, evidence(request))).status).toBe(409);
+  });
+  it("changes nothing until the platform approves, then updates the location", async () => {
+    const { token } = await login(uniAAdmin);
+    const { id } = await (await ask(token, evidence(request))).json();
+    expect((await details(token)).city).toBe("Mbeya");
+    expect((await app.request(`/platform/changes/${id}/approve`, authed(token, {}))).status).toBe(403);
+    const owner = await login(platformKey);
+    const pending = await (await app.request("/platform/changes", authed(owner.token))).json();
+    expect(pending[0]).toMatchObject({ id, old_value: "Mbeya", new_value: "Arusha" });
+    expect(await (await app.request(`/platform/changes/${id}/file`, authed(owner.token))).text()).toBe(PDF);
+    expect((await app.request(`/platform/changes/${id}/approve`, authed(owner.token, {}))).status).toBe(200);
+    expect((await app.request(`/platform/changes/${id}/approve`, authed(owner.token, {}))).status).toBe(409);
+    const after = await details(token);
+    expect(after).toMatchObject({ city: "Arusha", location: "Arusha, Tanzania" });
+    expect(after.changes[0]).toMatchObject({ status: "approved" });
+  });
+  it("records a rejection and its reason without changing the detail", async () => {
+    const { token } = await login(uniAAdmin);
+    const { id } = await (await ask(token, evidence(request))).json();
+    const owner = await login(platformKey);
+    expect((await app.request(`/platform/changes/${id}/reject`, authed(owner.token, { reason: "" }))).status).toBe(400);
+    expect((await app.request(`/platform/changes/${id}/reject`, authed(owner.token, { reason: "The document is unreadable" }))).status).toBe(200);
+    const after = await details(token);
+    expect(after.city).toBe("Mbeya");
+    expect(after.changes[0]).toMatchObject({ status: "rejected", review_reason: "The document is unreadable" });
+  });
+});
 
 describe("wallet login modes", () => {
   it("signs the platform owner in as platform", async () => {
@@ -686,6 +911,24 @@ describe("credentials and share links", () => {
     expect((await app.request(`/credentials/${CRED_ID}`, authed(b.token))).status).toBe(404);
     expect((await app.request(`/credentials/${CRED_ID}/file`, authed(b.token))).status).toBe(404);
     expect((await app.request(`/credentials/${CRED_ID}/shares`, authed(b.token, { recipient: "x y" }))).status).toBe(404);
+  });
+  it("stores an unsealed file as uploaded and refuses it twice", async () => {
+    const { token } = await login(uniA);
+    expect((await createCredential(token, PDF, CRED_CODE, "false")).status).toBe(201);
+    const detail = await (await app.request(`/credentials/${CRED_ID}`, authed(token))).json();
+    expect(detail.sealed).toBe(false);
+    expect((await createCredential(token, PDF, "UD-26-AAAAA-BBBB2", "false")).status).toBe(409);
+  });
+  it("rejects a malformed certificate code", async () => {
+    const { token } = await login(uniA);
+    expect((await createCredential(token, PDF, CRED_ID)).status).toBe(400);
+    expect((await createCredential(token, PDF, "UD-26-7K4Q9-XPM2U")).status).toBe(400);
+  });
+  it("derives the on-chain ID from the code and returns the code to staff", async () => {
+    const { token } = await login(uniA);
+    await createCredential(token);
+    const list = await (await app.request("/credentials", authed(token))).json();
+    expect(list[0]).toMatchObject({ id: CRED_ID, code: CRED_CODE });
   });
   it("refuses a repeated ID without touching the stored file or its owner", async () => {
     const a = await login(uniA);

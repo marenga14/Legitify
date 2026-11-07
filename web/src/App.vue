@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
+import { Menu as MenuIcon } from "lucide-vue-next";
 import BrandMark from "./components/BrandMark.vue";
 import BrandWordmark from "./components/BrandWordmark.vue";
 import LanguageSwitch from "./components/LanguageSwitch.vue";
@@ -30,16 +31,16 @@ const links = computed(() => [
   <div v-else class="public-shell">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-40 focus:p-3 focus:bg-sheet">{{ t("nav.skip") }}</a>
     <header class="relative z-30">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-5 lg:gap-6">
-        <RouterLink to="/" class="flex items-center gap-2 text-xl font-bold tracking-tight"><BrandMark class="h-7 w-auto" /><BrandWordmark class="text-[1.45rem]" /></RouterLink>
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-5 sm:gap-3 sm:px-6 lg:gap-6">
+        <RouterLink to="/" class="flex items-center gap-2 text-xl font-bold tracking-tight"><BrandMark class="h-6 w-auto sm:h-7" /><BrandWordmark class="text-[1.2rem] sm:text-[1.45rem]" /></RouterLink>
         <nav id="nav" :class="[open ? 'flex' : 'hidden', 'absolute inset-x-0 top-20 flex-col gap-1 bg-paper-deep px-6 pb-5 pt-2 shadow-xl lg:static lg:flex lg:flex-1 lg:flex-row lg:items-center lg:justify-end lg:gap-7 lg:bg-transparent lg:p-0 lg:shadow-none']" :aria-label="t('nav.main')">
           <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="py-2 text-sm font-medium text-ink-soft hover:text-ink" active-class="text-ink underline decoration-periwinkle decoration-2 underline-offset-8">{{ l.label }}</RouterLink>
           <RouterLink :to="session.current ? '/app' : '/sign-in'" class="btn mt-2 min-h-10! py-1! text-sm lg:mt-0">{{ session.current ? t("nav.openConsole") : t("nav.staffSignIn") }}</RouterLink>
         </nav>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1 sm:gap-3">
           <LanguageSwitch class="text-ink-soft" />
           <ThemeToggle class="text-ink-soft" />
-          <button class="btn btn-quiet lg:hidden" :aria-expanded="open" aria-controls="nav" @click="open = !open">{{ t("nav.menu") }}</button>
+          <button class="btn-icon text-ink lg:hidden" :aria-label="t('nav.menu')" :aria-expanded="open" aria-controls="nav" @click="open = !open"><MenuIcon class="size-6" aria-hidden="true" /></button>
         </div>
       </div>
     </header>

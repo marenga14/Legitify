@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import DetailField from "../../components/console/DetailField.vue";
 import PageHead from "../../components/console/PageHead.vue";
 import { api, session } from "../../lib/api";
@@ -21,6 +21,7 @@ async function uploadLogo() {
     await api("/institution/logo", { method: "POST", body });
     me.value!.hasLogo = true;
     logo.value = undefined;
+    await loadLogo();
   } catch (e) {
     error.value = (e as Error).message;
   }
@@ -100,6 +101,19 @@ async function saveNetwork() {
   }
 }
 
+const currentLogo = ref("");
+const newLogo = ref("");
+watch(logo, (file) => {
+  if (newLogo.value) URL.revokeObjectURL(newLogo.value);
+  newLogo.value = file ? URL.createObjectURL(file) : "";
+});
+async function loadLogo() {
+  if (!me.value?.hasLogo) return;
+  if (currentLogo.value) URL.revokeObjectURL(currentLogo.value);
+  currentLogo.value = URL.createObjectURL(await api<Blob>("/institution/logo"));
+}
+onBeforeUnmount(() => [currentLogo.value, newLogo.value].forEach((url) => url && URL.revokeObjectURL(url)));
+
 onMounted(async () => {
   if (!staff.value) {
     await loadNetworks().catch((e) => (error.value = e.message));
@@ -107,6 +121,7 @@ onMounted(async () => {
   }
   try {
     me.value = await api("/me");
+    await loadLogo();
   } catch (e) {
     error.value = (e as Error).message;
   }
@@ -145,6 +160,16 @@ async function toggleAgent() {
   <section v-if="me?.role === 'admin'" class="panel mt-4 p-5">
     <h2 class="text-lg">{{ t("settings.listingTitle") }}</h2>
     <p class="mt-2 max-w-prose text-ink-soft">{{ me.listed ? t("settings.on") : t("settings.off") }} {{ t("settings.listingBody") }}</p>
+    <div v-if="currentLogo || newLogo" class="mt-4 flex flex-wrap gap-4">
+      <figure v-if="currentLogo">
+        <figcaption class="mb-1 text-sm font-semibold">{{ t("settings.currentLogo") }}</figcaption>
+        <img :src="currentLogo" :alt="t('settings.currentLogo')" class="size-28 rounded-md border border-line bg-white object-contain p-2" />
+      </figure>
+      <figure v-if="newLogo">
+        <figcaption class="mb-1 text-sm font-semibold">{{ t("settings.newLogo") }}</figcaption>
+        <img :src="newLogo" :alt="t('settings.newLogo')" class="size-28 rounded-md border border-line bg-white object-contain p-2" />
+      </figure>
+    </div>
     <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="uploadLogo">
       <label>{{ t("settings.logo") }}<input type="file" accept="image/png,image/jpeg" class="field mt-1" required @change="logo = ($event.target as HTMLInputElement).files?.[0]" /></label>
       <button class="btn btn-quiet" :disabled="!logo">{{ me.hasLogo ? t("settings.replaceLogo") : t("settings.uploadLogo") }}</button>

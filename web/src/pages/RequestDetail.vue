@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import PageHead from "../components/console/PageHead.vue";
+import { OUTCOMES } from "../lib/outcomes";
+import ChainRecord, { type ChainProof } from "../components/console/ChainRecord.vue";
 import { api } from "../lib/api";
 import { dateLocale, t, te } from "../lib/i18n";
 
@@ -12,18 +14,18 @@ interface Triage {
 interface Req {
   id: string; subject: string; purpose: string; requester_org: string; requester_email: string; status: string; level: number;
   escalation_reason: string | null; registry_status: string; registry_institution: string | null; registry_other_issuer: boolean; triage_status: string;
-  triage: Triage | null; consent_agent: boolean; file_name: string; answer_outcome: string | null; answer_note: string | null; receipt_hash: string | null;
+  triage: Triage | null; consent_agent: boolean; file_name: string; answer_outcome: string | null; answer_note: string | null; receipt_hash: string | null; answered_at: string | null; answered_by: string | null;
+  answered_by_name: string; answered_by_position: string; chain: ChainProof | null;
 }
 const level = (n: number) => t(`levels.${n}`);
 const actionLabel = (action: string) => {
   const key = `detail.actions.${action.replace(".", "_")}`;
   return te(key) ? t(key) : action;
 };
-const OUTCOMES: Record<string, string> = { confirmed: "detail.confirmed", not_confirmed: "detail.notConfirmed", needs_information: "detail.needsInfo" };
 
 const id = String(useRoute().params.id);
 const r = ref<Req | null>(null);
-const log = ref<{ action: string; actor: string; created_at: string }[]>([]);
+const log = ref<{ action: string; actor: string; created_at: string; actor_name: string | null }[]>([]);
 const fileUrl = ref("");
 const error = ref("");
 const answer = reactive({ outcome: "confirmed", note: "" });
@@ -114,6 +116,12 @@ const agentNote = computed(() => {
           <h2 class="text-xl">{{ t("detail.answered") }}</h2>
           <p class="mt-2">{{ t(OUTCOMES[r.answer_outcome!]!) }}</p>
           <p v-if="r.answer_note" class="mt-2 whitespace-pre-line">{{ r.answer_note }}</p>
+          <dl class="mt-3 space-y-2">
+            <div><dt class="text-sm font-semibold">{{ t("inbox.resolvedBy") }}</dt><dd>{{ r.answered_by_name || r.answered_by }}<template v-if="r.answered_by_position">, {{ r.answered_by_position }}</template></dd></div>
+            <div><dt class="text-sm font-semibold">{{ t("inbox.resolvedAt") }}</dt><dd>{{ new Date(r.answered_at!).toLocaleString(dateLocale()) }}</dd></div>
+            <div><dt class="text-sm font-semibold">{{ t("inbox.onChain") }}</dt><dd><ChainRecord v-if="r.chain" :chain="r.chain" /></dd></div>
+          </dl>
+          <p class="mt-3 text-sm text-ink-soft">{{ t("inbox.chainNote") }}</p>
           <p class="mt-3 text-ink-soft">{{ t("detail.receipt") }} <span class="hash">{{ r.receipt_hash }}</span></p>
         </div>
         <form v-else class="space-y-4" @submit.prevent="act('answer', answer)">
@@ -142,7 +150,7 @@ const agentNote = computed(() => {
         <ol class="mt-3 space-y-2">
           <li v-for="(e, i) in log" :key="i">
             {{ actionLabel(e.action) }}
-            <span class="block text-sm text-ink-soft">{{ new Date(e.created_at).toLocaleString(dateLocale()) }}</span>
+            <span class="block text-sm text-ink-soft">{{ new Date(e.created_at).toLocaleString(dateLocale()) }}<template v-if="e.actor_name"> · {{ e.actor_name }}</template></span>
           </li>
         </ol>
       </aside>

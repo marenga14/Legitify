@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
-import { Building2, ClipboardList, FileText, Inbox, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-vue-next";
+import { BadgeCheck, Building2, ClipboardList, FilePen, Landmark, FileText, Inbox, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-vue-next";
 import { api, session, setSession } from "../../lib/api";
 import BrandMark from "../BrandMark.vue";
 import BrandWordmark from "../BrandWordmark.vue";
@@ -21,13 +21,18 @@ const nav = computed(() => {
   if (role === "platform") return [
     { to: "/app/platform", label: t("console.nav.dashboard"), icon: LayoutDashboard, exact: true },
     { to: "/app/platform/applications", label: t("console.nav.applications"), icon: ClipboardList },
+    { to: "/app/platform/changes", label: t("console.nav.changes"), icon: FilePen },
     { to: "/app/platform/institutions", label: t("console.nav.institutions"), icon: Building2 },
     { to: "/app/settings", label: t("console.nav.settings"), icon: Settings },
   ];
   return [
     { to: "/app/dashboard", label: t("console.nav.dashboard"), icon: LayoutDashboard },
     { to: "/app/inbox", label: t("console.nav.inbox"), icon: Inbox },
-    ...(role === "admin" ? [{ to: "/app/operators", label: t("console.nav.operators"), icon: Users }] : []),
+    ...(role === "admin" ? [
+      { to: "/app/institution", label: t("console.nav.profile"), icon: Landmark },
+      { to: "/app/seal", label: t("console.nav.seal"), icon: BadgeCheck },
+      { to: "/app/operators", label: t("console.nav.operators"), icon: Users },
+    ] : []),
     { to: "/app/documents", label: t("console.nav.documents"), icon: FileText },
     { to: "/app/settings", label: t("console.nav.settings"), icon: Settings },
   ];

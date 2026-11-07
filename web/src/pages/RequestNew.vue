@@ -28,7 +28,7 @@ async function submit() {
     for (const [k, v] of Object.entries(form)) body.set(k, String(v));
     body.set("file", file.value);
     const { trackingToken } = await api<{ trackingToken: string }>("/requests", { method: "POST", body });
-    router.push(`/track/${trackingToken}`);
+    router.push({ path: `/track/${trackingToken}`, query: { sent: "1" } });
   } catch (e) {
     error.value = (e as Error).message;
   } finally {

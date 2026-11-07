@@ -1,34 +1,28 @@
-import { bytesToHex, type Hex } from "viem";
 import { dateLocale, t } from "./i18n";
+import type { SealFiles } from "./seal";
+import type { SealStyle } from "./sealStyles";
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const QR_POINTS = 64;
-const MARGIN = 16;
 
 export const statusLabel = (status: string) => t(`status.${status}`);
 export const shortId = (id: string) => `${id.slice(0, 10)}…${id.slice(-6)}`;
 export const longDate = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { dateStyle: "full" });
-export const newCredentialId = (): Hex => bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 
 /**
- * Adds a QR code to the last page pointing at the certificate's public record. The stamped file
- * is what gets fingerprinted, so it's also the exact copy a holder must present to verify.
+ * Adds the institution's seal and the printed ID to the last page, for the certificate's public
+ * record. The stamped file is what gets fingerprinted, so it's also the exact copy a holder must
+ * present to verify.
  */
-export async function stampCertificate(file: File, credentialId: Hex): Promise<File> {
+export async function stampCertificate(file: File, code: string, institution: string, style: SealStyle, files: SealFiles = {}): Promise<File> {
   if (file.size > MAX_BYTES) throw new Error(t("errors.fileTooLarge"));
   // Large, and only staff creating a certificate need them.
-  const [{ PDFDocument, rgb }, { default: QRCode }] = await Promise.all([import("pdf-lib"), import("qrcode")]);
+  const [{ PDFDocument }, { drawSeal }] = await Promise.all([import("pdf-lib"), import("./seal")]);
   let pdf: Awaited<ReturnType<typeof PDFDocument.load>>;
   try {
     pdf = await PDFDocument.load(await file.arrayBuffer());
   } catch {
     throw new Error(t("errors.cantStamp"));
   }
-  const png = await QRCode.toDataURL(`${location.origin}/v/${credentialId}`, { margin: 1, width: 256 });
-  const qr = await pdf.embedPng(png);
-  const page = pdf.getPages().at(-1)!;
-  const x = page.getWidth() - QR_POINTS - MARGIN;
-  page.drawRectangle({ x: x - 2, y: MARGIN - 2, width: QR_POINTS + 4, height: QR_POINTS + 4, color: rgb(1, 1, 1) });
-  page.drawImage(qr, { x, y: MARGIN, width: QR_POINTS, height: QR_POINTS });
+  await drawSeal(pdf, pdf.getPages().at(-1)!, { url: `${location.origin}/v/${code}`, code, institution, style }, files);
   return new File([(await pdf.save()) as BlobPart], file.name, { type: "application/pdf" });
 }

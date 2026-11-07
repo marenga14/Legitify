@@ -7,10 +7,10 @@ import { anchorYesterday, viemAnchor } from "./anchor.js";
 import { createApp, runSlaSweep, savedNetwork, syncInstitutions } from "./app.js";
 import { viemChain } from "./chain.js";
 import { loadConfig } from "./config.js";
-import { openDb } from "./db.js";
+import { openDb, openPostgres } from "./db.js";
 
 const config = loadConfig();
-const db = await openDb(path.join(config.DATA_DIR, "db"));
+const db = config.DATABASE_URL ? await openPostgres(config.DATABASE_URL) : await openDb(path.join(config.DATA_DIR, "db"));
 const chain = viemChain({
   rpcUrl: config.RPC_URL,
   registry: config.REGISTRY_ADDRESS as Address,
@@ -27,6 +27,7 @@ const app = createApp({
   sessionSecret: config.SESSION_SECRET,
   fileMasterKey: config.FILE_MASTER_KEY,
   dataDir: config.DATA_DIR,
+  anchoring: Boolean(config.ANCHOR_ADDRESS && config.ANCHOR_PRIVATE_KEY),
   webOrigin: config.WEB_ORIGIN,
   registry: config.REGISTRY_ADDRESS as Address,
   dailySponsorQuota: config.DAILY_SPONSOR_QUOTA,
@@ -39,7 +40,7 @@ await sync();
 setInterval(sync, 5 * 60_000);
 setInterval(() => runSlaSweep(db).catch((e) => console.error("sla sweep failed", e)), 10 * 60_000);
 
-// In this process because PGlite is single-process: a second one on the same folder loses writes.
+// In this process so it works the same on PGlite, where a second process on the folder loses writes.
 if (config.ANCHOR_ADDRESS && config.ANCHOR_PRIVATE_KEY) {
   const target = viemAnchor({
     rpcUrl: config.RPC_URL, address: config.ANCHOR_ADDRESS as Address, privateKey: config.ANCHOR_PRIVATE_KEY as Hex,
@@ -49,6 +50,18 @@ if (config.ANCHOR_ADDRESS && config.ANCHOR_PRIVATE_KEY) {
   setInterval(anchor, 60 * 60_000);
 }
 
-serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOST }, () =>
+const server = serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOST }, () =>
   console.log(`legitify-api on ${config.HOST}:${config.PORT}`),
 );
+
+/** PGlite holds recent writes in memory, and Postgres connections should end cleanly. */
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  server.close();
+  await db.close();
+  process.exit(0);
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

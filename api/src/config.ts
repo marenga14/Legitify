@@ -5,6 +5,8 @@ const schema = z.object({
   HOST: z.string().default("127.0.0.1"),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   DATA_DIR: z.string().default("./.data"),
+  /** Without this the API uses PGlite in DATA_DIR, which suits local development only. */
+  DATABASE_URL: z.string().optional(),
   SESSION_SECRET: z.string().min(32),
   FILE_MASTER_KEY: z.string().regex(/^[0-9a-f]{64}$/, "64 hex chars"),
   CHAIN_ID: z.coerce.number().default(968),

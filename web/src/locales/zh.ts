@@ -2,11 +2,14 @@ import type en from "./en";
 
 const zh: typeof en = {
   titles: {
+    bulkCheck: "批量核验文件",
+    sealEditor: "证书印章",
+    institutionProfile: "机构资料", platformChanges: "变更申请",
     why: "为什么选择 Legitfy", how: "工作原理", security: "隐私与安全",
     apply: "申请加入", applyTrack: "您的申请", platformApplications: "申请",
     home: "Legitfy", institutions: "面向机构", verifiers: "面向雇主与核验方", developers: "面向开发者",
     verify: "核验文件", credential: "凭证记录", request: "询问机构", track: "您的请求",
-    shared: "共享的证书", signIn: "工作人员登录", dashboard: "仪表盘", inbox: "收件箱", requestDetail: "请求",
+    shared: "共享的证书", signIn: "工作人员登录", dashboard: "仪表盘", inbox: "请求", requestDetail: "请求",
     documents: "文件", documentDetail: "文件详情", operators: "操作员", settings: "设置",
     platformInstitutions: "机构", notFound: "页面未找到",
   },
@@ -64,7 +67,7 @@ const zh: typeof en = {
     hashing: "正在计算指纹", reading: "正在读取公开记录", notChecked: "未完成核验", notCheckedBody: "指纹已计算，记录不可用",
     ready: "准备核验", readyBody: "拖入或选择文件", onRecord: "已在公开记录中", issuedBy: "由 {institution} 签发",
     revoked: "已撤销", revokedBy: "撤销方：{institution}", replaced: "已被替换", replacedBody: "存在更新的版本", issuerSuspended: "签发机构已暂停",
-    noRecord: "未找到记录", noRecordBody: "这并不代表文件是伪造的",
+    codeLabel: "或输入文件上印的证书 ID", codeCheck: "核验 ID", codeBad: "该 ID 似乎有误，请与文件核对。", noRecord: "未找到记录", noRecordBody: "这并不代表文件是伪造的",
   },
   verdict: {
     onNetwork: "位于 {network}",
@@ -72,7 +75,7 @@ const zh: typeof en = {
     revokedTitle: "此凭证已被撤销", revokedBody: "{institution} 已于 {date} 撤销此凭证。原因：{reason}。",
     replacedTitle: "存在更新的版本", replacedBody: "{institution} 已用更正后的凭证替换此凭证。请向持有人索取最新版本。",
     suspendedTitle: "由 {institution} 签发，该机构已被暂停", suspendedBody: "此记录签发于 {date}，但 {institution} 目前已被 Legitfy 暂停。请直接向该机构确认。",
-    noneTitle: "未找到记录", noneBody: "这份文件并非通过 Legitfy 签发。这并不代表它是伪造的：较早的文件和重新保存的副本都无法匹配。您可以请机构确认。",
+    noneTitle: "未找到记录", noneBody: "这份文件并非通过 Legitfy 签发。这并不代表它是伪造的：较早的文件、重新保存的副本以及未加盖二维码的原件都无法匹配。如果文件上印有证书 ID，请改用该 ID 核验，或请机构确认。",
     ask: "询问机构", current: "查看最新版本", record: "查看公开记录", technical: "技术详情", fingerprint: "文件指纹", credentialId: "凭证 ID",
   },
   credential: { heading: "凭证记录", reading: "正在读取公开记录" },
@@ -106,14 +109,13 @@ const zh: typeof en = {
   },
   track: {
     sent: "已于 {date} 发送给 {institution}", confirmed: "已确认", notConfirmed: "未确认", needsInfo: "需要更多信息", answered: "{institution} 已于 {date} 回复。",
-    receipt: "回执", waiting: "正在等待 {institution}", inReview: "工作人员正在审核。", queued: "请求正在排队。",
-    save: "请保存此链接以便查看进度。这是访问此请求的唯一方式。", loading: "正在加载您的请求",
+    receipt: "回执", waiting: "正在等待 {institution}", inReview: "工作人员正在审核。", queued: "请求正在排队。", loading: "正在加载您的请求",
   },
   apply: {
     title: "申请在 Legitfy 上签发证书", sub: "请告诉我们贵机构的情况以及账户的负责人。任何内容进入公开记录前，我们都会审核每份申请。",
     eyebrow: "机构入驻",
     needTitle: "您需要准备", need1: "贵机构的注册或认证文件", need2: "由贵机构指定负责账户的人员",
-    need3: "一封由机构负责人签署并加盖机构公章的信函。完成此步骤后我们会为您生成，您可以稍后再回来", need4: "指定人员的钱包。我们会告诉您如何设置",
+    need3: "一封由机构负责人签署并加盖机构公章的信函。完成此步骤后我们会为您生成，您可以稍后再回来", need4: "指定人员的钱包。我们会告诉您如何设置", need5: "申请人的政府证件类型和号码", identitySection: "您的身份", identityWhy: "我们会向证件签发机关核实您的证件号码，以确认谁在代表该机构申请。号码经加密存储，只有 Legitfy 的审核人员才能查看，绝不会出现在公开记录中。如果申请未获批准，我们会将其删除。", identityDocument: "证件类型", chooseIdentity: "请选择证件", identityNumber: "证件号码", identityConsent: "我同意 Legitfy 就本次申请向证件签发机关核实我的证件号码。",
     institutionSection: "贵机构", name: "正式名称", nameHint: "请与注册文件完全一致。进入公开记录后无法更改。", number: "注册或认证编号", type: "机构类型", chooseType: "请选择类型",
     country: "国家", city: "城市", email: "官方邮箱", phone: "电话", website: "网站（选填）", registrationFile: "注册或认证文件", fileHint: "PDF、JPEG 或 PNG，不超过 15 MB。",
     applicantEmail: "其官方邮箱", applicantEmailHint: "请使用办公邮箱，不要使用个人邮箱。",
@@ -133,19 +135,21 @@ const zh: typeof en = {
   },
   track2: {
     reference: "编号 {reference}", reviewing: "我们已收到您的信函，正在审核申请。", nextTitle: "下一步：授权函", step1: "下载信函，我们已根据您的申请填好内容。", step2: "打印后请 {name}（{title}）签名并注明日期。", step3: "加盖机构公章。", step4: "扫描或拍摄整页，然后在下方上传。",
-    download: "下载信函", uploadTitle: "上传已签署的信函", replace: "替换信函", file: "已签名盖章的信函", upload: "上传信函", approved: "贵机构已进入公开记录。请使用申请时的钱包登录，添加员工并发布证书。", signIn: "前往登录",
-    reason: "给出的原因", again: "重新申请", save: "请保存此链接。我们暂不发送邮件，这是返回此申请的唯一途径。",
+    downloadPlain: "下载文件", unsealedNote: "此证书没有印章。请将这份文件原样交给持有人：经过编辑、重新保存或打印的副本都无法通过核验。", download: "下载信函", uploadTitle: "上传已签署的信函", replace: "替换信函", file: "已签名盖章的信函", upload: "上传信函", approved: "贵机构已进入公开记录。请使用申请时的钱包登录，添加员工并发布证书。", signIn: "前往登录",
+    reason: "给出的原因", again: "重新申请"
   },
   applications: {
     title: "申请", empty: "暂无申请。", applicant: "申请人", received: "收到日期", signatory: "签署人", noLetter: "尚无信函。",
     status: { awaiting_mandate: "等待已签署的信函", under_review: "审核中", approved: "已批准", rejected: "未获批准" },
     types: { university: "大学", college: "学院", school: "学校", professional_body: "专业团体", government: "政府机构", other: "其他" },
-    load: { registration: "加载注册文件", mandate: "加载已签署信函" }, open: { registration: "打开注册文件", mandate: "打开已签署信函" },
-    checksTitle: "批准前请确认", check1: "我已通过监管机构或官方名录核实注册信息。", check2: "我已通过自行查找的官方渠道联系该机构。", check3: "信函由所列负责人签署并加盖机构公章。", check4: "信函中的钱包与上方钱包逐字一致。",
+    ids: { national_id: "身份证", passport: "护照", driving_licence: "驾驶证", voter_id: "选民证" },
+    showIdentity: "显示证件号码", erased: "此申请未获批准，其个人信息和文件已被删除。", rejectNote: "此操作将永久删除申请人的个人信息、证件号码和上传的文件。请勿在原因中填写姓名或证件信息。", load: { registration: "加载注册文件", mandate: "加载已签署信函" }, open: { registration: "打开注册文件", mandate: "打开已签署信函" },
+    checksTitle: "批准前请确认", check5: "我已向证件签发机关核实证件号码和类型，且姓名与本表中的申请人一致。", check1: "我已通过监管机构或官方名录核实注册信息。", check2: "我已通过自行查找的官方渠道联系该机构。", check3: "信函由所列负责人签署并加盖机构公章。", check4: "信函中的钱包与上方钱包逐字一致。",
     permanent: "批准后将从您的钱包把此名称和钱包登记到公开记录。名称此后无法更改或删除。", approve: "批准并注册", rejectReason: "为什么不批准？申请人会看到此内容。", reject: "拒绝申请",
   },
   theme: { toLight: "切换到浅色主题", toDark: "切换到深色主题" },
   networks: { title: "支持的网络", sub: "公开核验会搜索此处列出的每个网络。" },
+  tracking: { title: "这是您的跟踪链接", requestBody: "这是返回此请求及其答复的唯一途径。请复制并妥善保存，因为我们暂时不会通过邮件发送给您。", applicationBody: "这是返回此申请的唯一途径，上传已签署的信函时也需要它。请复制并妥善保存，因为我们暂时不会通过邮件发送给您。", requestSent: "您的请求已发送给 {institution}。", applicationSent: "我们已收到您的申请。", private: "请像对待密码一样保管：任何拥有此链接的人都能打开此页面。", copyFailed: "您的浏览器阻止了复制。请选中上方链接并手动复制。" },
   showcase: { title: "Legitfy 上的机构", sub: "选择在此展示的已注册机构。" },
   why: {
     title: "核验文件不应取决于您能联系到谁", sub: "证书决定谁被录用、晋升或录取，但核验方式却没有跟上。", problem: "问题所在", solution: "Legitfy 的做法",
@@ -179,14 +183,16 @@ const zh: typeof en = {
   },
   console: {
     label: "控制台", home: "Legitfy 控制台首页", closeMenu: "关闭菜单", openMenu: "打开菜单", signOut: "退出登录", storage: "已用加密存储", platform: "平台管理",
-    nav: { applications: "申请", dashboard: "仪表盘", inbox: "收件箱", operators: "操作员", documents: "文件", settings: "设置", institutions: "机构" },
+    nav: { seal: "证书印章", profile: "机构资料", changes: "变更申请", applications: "申请", dashboard: "仪表盘", inbox: "请求", operators: "操作员", documents: "文件", settings: "设置", institutions: "机构" },
   },
   dashboard: {
     title: "仪表盘", operators: "操作员", documents: "文件", openRequests: "待处理请求", answered: "已回复",
     certificatesChart: "已创建证书", requestsChart: "已收到请求", certificatesNoun: "份证书", requestsNoun: "个请求", empty: "过去六个月暂无数据。", month: "月份",
   },
   inbox: {
-    title: "收件箱", levelSuffix: "{level}级别", empty: "目前没有待处理事项。有人发送请求后会显示在这里。",
+    title: "请求", noneResolved: "目前还没有已解决的请求。", outcome: "结果", resolvedBy: "解决人", resolvedAt: "解决时间", onChain: "链上记录", chainNote: "答复内容保持私密，绝不会写入区块链。每天会将完整活动日志的指纹写入区块链，以证明此历史记录此后未被更改。",
+    tabs: { open: "待处理", resolved: "已解决" },
+    chain: { anchored: "已于 {date} 记录", pending: "等待下一次每日记录", off: "未记录" }, levelSuffix: "{level}级别", empty: "目前没有待处理事项。有人发送请求后会显示在这里。",
     urgentOne: "{n} 个请求需优先处理", urgentMany: "{n} 个请求需优先处理", requests: "请求", no: "序号", subject: "主题", from: "来自", due: "截止", level: "级别",
     overdue: "已逾期 {n} 小时", dueHours: "{n} 小时后截止", dueDays: "{n} 天后截止", inReview: "审核中", viewItem: "查看 {name}",
   },
@@ -211,12 +217,13 @@ const zh: typeof en = {
   documents: {
     title: "文件", create: "创建证书", empty: "还没有证书。创建证书后即可将其指纹发布到公开记录。", table: "证书",
     id: "证书 ID", owner: "证书持有人", created: "创建日期", purpose: "用途", viewItem: "查看 {owner}，{title}", purposeHint: "计算机科学学士", description: "说明",
-    file: "证书（PDF，最大 15 MB）", stampNote: "二维码会添加到最后一页。只有加盖二维码的副本才能通过核验，请将该副本交给持有人。",
+    addSeal: "添加我们的印章", noSealNote: "不加印章时，文件将保持上传时的原样。只有这份文件本身才能通过核验，打印件无法通过二维码核验。",
+    file: "证书（PDF，最大 15 MB）", stampNote: "您的印章和证书 ID 会添加到最后一页。只有加盖印章的副本才能通过核验，请将该副本交给持有人。",
     stamping: "正在加盖二维码", saving: "正在保存加密文件",
   },
   document: {
     title: "文件详情", back: "返回文件列表", name: "文件名称", created: "创建日期", description: "说明", record: "公开记录", file: "文件", id: "证书 ID",
-    fingerprint: "文件指纹", actions: "操作", open: "打开", share: "共享", publish: "发布到公开记录", pending: "此证书已保存，但尚未进入公开记录，因此暂时无法被核验到。",
+    fingerprint: "文件指纹", download: "下载加盖二维码的副本", stampedNote: "请将这份加盖印章的副本交给持有人。您上传的文件没有印章，无法通过核验。", actions: "操作", open: "打开", share: "共享", publish: "发布到公开记录", pending: "此证书已保存，但尚未进入公开记录，因此暂时无法被核验到。",
     shares: "文件共享记录", noShares: "尚未共享。共享会创建一个无需登录的链接，您可以随时撤回。", to: "接收方：", from: "发送方：", status: "状态：", expires: "到期：", comment: "备注：",
     withdraw: "撤回链接", active: "有效", expired: "已过期", withdrawn: "已撤回", linkCreated: "链接已创建", copyNow: "请立即复制。出于安全考虑，此链接不会再次显示。",
     copy: "复制链接", copied: "已复制", shareTitle: "共享此证书", who: "分享给谁？", commentLabel: "备注", days: "链接有效期（天）", createLink: "创建链接",
@@ -225,7 +232,28 @@ const zh: typeof en = {
     title: "操作员", no: "序号", name: "姓名", position: "职位", wallet: "钱包", role: "角色", level: "审核级别", noName: "未填写姓名", levelFor: "{name} 的审核级别",
     add: "添加操作员", walletAddress: "钱包地址", submit: "添加操作员", roles: { admin: "管理员", operator: "操作员" },
   },
+  profile: {
+    title: "机构资料", contactTitle: "联系方式", contactBody: "您可以随时更新这些信息。", save: "保存联系方式", saved: "已保存", registeredTitle: "注册信息", registeredBody: "这些信息在贵机构获批时已经核实，因此变更时需要提供证明文件，并由 Legitfy 审核。", nameLocked: "此名称在公开记录中永久保存，无法在此更改。如有错误，请联系 Legitfy 支持团队。", notRecorded: "未记录", waiting: "等待审核", requestChange: "申请变更", historyTitle: "变更申请", requestTitle: "变更{field}", newValue: "新内容", reason: "变更原因", evidence: "证明文件", send: "提交申请",
+    fields: { registration_number: "注册编号", institution_type: "机构类型", country: "国家", city: "城市" },
+    status: { pending: "等待审核", approved: "已批准", rejected: "未批准" },
+  },
+  changes: {
+    title: "变更申请", empty: "目前没有待处理的变更申请。", detail: "信息项", current: "当前", requested: "申请变更为", loadEvidence: "加载证明文件", openEvidence: "打开证明文件", checkNote: "批准前，请打开文件并通过官方渠道确认此项变更。", approve: "批准变更", rejectReason: "未批准的原因是什么？机构将看到此内容。", reject: "不批准",
+  },
+  seal: {
+    needSeal: "请上传您的印章后再使用。在此之前，证书将使用模板。", needEmblem: "请上传您的徽标后再使用。在此之前，印章将显示缩写。", title: "证书印章", body: "贵机构获批时，Legitfy 已自动生成一枚印章。您可以在此更改任何内容。请仅使用贵机构有权使用的名称、徽标和图案。", sourceTitle: "印章图案", useTemplate: "使用模板", useUpload: "使用我们自己的印章", uploadSeal: "上传您自己的印章", uploadHint: "PNG 或 JPEG，不超过 1 MB。透明背景的 PNG 效果最佳。", removeSeal: "移除已上传的印章", designTitle: "模板", colour: "颜色", wordingTitle: "文字", topText: "上方文字", bottomText: "下方文字", bottomHint: "扫码核验", initials: "缩写（最多 4 个字符）", automatic: "自动", centreTitle: "印章中心", centreInitials: "缩写", centreEmblem: "徽标", uploadEmblem: "上传徽标（PNG 或 JPEG，不超过 1 MB）", removeEmblem: "移除徽标", detailsTitle: "附加信息", poBox: "邮政信箱或地址", showDate: "显示签发日期", placementTitle: "二维码和位置", qr: "二维码", position: "页面位置", arrangement: "二维码位置", noQrNote: "没有二维码时，打印件只能通过输入证书 ID 来核验。", previewTitle: "预览", existingNote: "此设置适用于新证书，已有证书保持不变。", save: "保存印章", saved: "印章已保存",
+    designs: { rosette: "花边", classic: "经典圆环", beaded: "珠饰", milled: "齿边", octagon: "八角形", plaque: "方牌" },
+    colours: { violet: "紫色", navy: "藏青色", blue: "蓝色", green: "绿色", red: "红色" },
+    qrModes: { inside: "在印章内", separate: "与印章分开", none: "不使用二维码" },
+    positions: { "bottom-right": "右下角", "bottom-left": "左下角", "top-right": "右上角", "top-left": "左上角" },
+    arrangements: { opposite: "页面另一侧", horizontal: "印章旁边（水平）", vertical: "印章上方或下方（垂直）" },
+  },
+  bulk: {
+    link: "需要核验多份文件？上传清单", title: "批量核验文件", body: "上传证书 ID 表格或多份 PDF。您将获得一份表格，其中包含公开记录中每一项的结果。", listTitle: "证书 ID 清单", listHint: "Excel (.xlsx) 或 CSV，最多 {max} 行。我们会自动找到 ID 列，您的其他列也会保留在结果中。", filesTitle: "PDF 文件", filesHint: "最多 {max} 个文件。请使用加盖印章的副本。", privacy: "所有操作都在您的浏览器中完成，您的清单和文件绝不会被上传。", progress: "已核验 {done} / {total}", download: "下载结果 (Excel)", notFake: "无记录并不代表文件是伪造的：较早的文件和重新保存的副本都无法匹配，请询问机构。未核验表示无法连接公开记录，请重试。", item: "项目", result: "结果", issuedBy: "签发机构", issued: "签发日期", network: "网络", currentVersion: "当前版本 ID", fileName: "文件", unreadable: "无法读取该文件。请另存为 .xlsx 或 .csv 后重试。", noRows: "该文件中没有找到任何行。", tooManyRows: "行数过多，上限为 {max}。", tooManyFiles: "文件过多，上限为 {max}。",
+    status: { authentic: "已在公开记录中", revoked: "已撤销", replaced: "已被替换", suspended: "签发机构已暂停", not_found: "未找到记录", invalid: "ID 有误", not_checked: "未核验" },
+  },
   settings: {
+    currentLogo: "当前徽标", newLogo: "新徽标",
     networksTitle: "支持的网络", networksBody: "公开核验会搜索此处的每个网络。只有在您的登记册部署到某网络后，才能添加该网络。", networkLogo: "网络徽标（PNG 或 JPEG，不超过 1 MB）", addNetwork: "添加网络", removeNetwork: "移除",
     listingTitle: "公开展示", listingBody: "开启后，贵机构的名称、所在地和徽标会显示在 Legitfy 首页。您可以随时关闭。", logo: "徽标（PNG 或 JPEG，不超过 1 MB）", uploadLogo: "上传徽标", replaceLogo: "更换徽标", showListing: "在首页显示", hideListing: "从首页隐藏",
     networkTitle: "网络信息", networkBody: "这些信息显示在公开网站上，并决定网站读取哪个网络。部署后请在此更新。保存时会检查 RPC 地址是否可用，以及您的钱包是否拥有该登记册。", networkName: "网络名称", chainId: "链 ID", saveNetwork: "保存网络信息",
