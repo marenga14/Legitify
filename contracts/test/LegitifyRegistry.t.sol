@@ -17,7 +17,6 @@ contract LegitifyRegistryTest is Test {
 
     bytes32 constant ID = keccak256("id");
     bytes32 constant FILE = keccak256("file");
-    bytes constant CID = hex"01551220aabb";
 
     function setUp() public {
         vm.warp(1_800_000_000);
@@ -32,7 +31,7 @@ contract LegitifyRegistryTest is Test {
 
     function _issue() internal {
         vm.prank(opA);
-        registry.issue(ID, FILE, CID);
+        registry.issue(ID, FILE);
     }
 
     // ---- institutions and roles
@@ -110,7 +109,7 @@ contract LegitifyRegistryTest is Test {
         registry.removeOperator(opA);
         vm.prank(opA);
         vm.expectRevert(R.NotActiveMember.selector);
-        registry.issue(keccak256("2"), keccak256("f2"), "");
+        registry.issue(keccak256("2"), keccak256("f2"));
         assertEq(uint8(registry.verifyById(ID).status), uint8(R.CredentialStatus.Authentic));
     }
 
@@ -145,7 +144,6 @@ contract LegitifyRegistryTest is Test {
         assertEq(byId.institutionName, "University A");
         assertEq(byId.credential.issuer, opA);
         assertEq(byId.credential.issuedAt, block.timestamp);
-        assertEq(byId.credential.storageCid, CID);
         assertEq(registry.credentialCount(), 1);
     }
 
@@ -153,7 +151,7 @@ contract LegitifyRegistryTest is Test {
     function test_outsiderCannotIssue() public {
         vm.prank(outsider);
         vm.expectRevert(R.NotActiveMember.selector);
-        registry.issue(ID, FILE, CID);
+        registry.issue(ID, FILE);
         assertEq(uint8(registry.verifyByHash(FILE).status), uint8(R.CredentialStatus.NotFound));
     }
 
@@ -166,14 +164,14 @@ contract LegitifyRegistryTest is Test {
     function test_rejectsZeroAndDuplicates() public {
         vm.startPrank(opA);
         vm.expectRevert(R.InvalidCredential.selector);
-        registry.issue(bytes32(0), FILE, "");
+        registry.issue(bytes32(0), FILE);
         vm.expectRevert(R.InvalidCredential.selector);
-        registry.issue(ID, bytes32(0), "");
-        registry.issue(ID, FILE, CID);
+        registry.issue(ID, bytes32(0));
+        registry.issue(ID, FILE);
         vm.expectRevert(R.DuplicateCredential.selector);
-        registry.issue(ID, keccak256("other"), "");
+        registry.issue(ID, keccak256("other"));
         vm.expectRevert(R.DuplicateFile.selector);
-        registry.issue(keccak256("other"), FILE, "");
+        registry.issue(keccak256("other"), FILE);
     }
 
     /// Regression: storeDocument used to overwrite existing records.
@@ -181,14 +179,14 @@ contract LegitifyRegistryTest is Test {
         _issue();
         vm.prank(adminB);
         vm.expectRevert(R.DuplicateCredential.selector);
-        registry.issue(ID, keccak256("evil"), "");
+        registry.issue(ID, keccak256("evil"));
         assertEq(registry.verifyById(ID).credential.fileHash, FILE);
     }
 
     function test_issueBatch() public {
         R.IssueParams[] memory items = new R.IssueParams[](3);
         for (uint256 i; i < 3; ++i) {
-            items[i] = R.IssueParams(keccak256(abi.encode("id", i)), keccak256(abi.encode("f", i)), CID);
+            items[i] = R.IssueParams(keccak256(abi.encode("id", i)), keccak256(abi.encode("f", i)));
         }
         vm.prank(opA);
         registry.issueBatch(items);
@@ -197,8 +195,8 @@ contract LegitifyRegistryTest is Test {
 
     function test_issueBatchIsAllOrNothing() public {
         R.IssueParams[] memory items = new R.IssueParams[](2);
-        items[0] = R.IssueParams(ID, FILE, CID);
-        items[1] = R.IssueParams(ID, keccak256("x"), CID);
+        items[0] = R.IssueParams(ID, FILE);
+        items[1] = R.IssueParams(ID, keccak256("x"));
         vm.prank(opA);
         vm.expectRevert(R.DuplicateCredential.selector);
         registry.issueBatch(items);
@@ -250,7 +248,7 @@ contract LegitifyRegistryTest is Test {
         bytes32 newId = keccak256("new");
         bytes32 newFile = keccak256("newFile");
         vm.prank(opA);
-        registry.supersede(ID, newId, newFile, CID);
+        registry.supersede(ID, newId, newFile);
         R.Verification memory old = registry.verifyById(ID);
         assertEq(uint8(old.status), uint8(R.CredentialStatus.Replaced));
         assertEq(old.credential.replacedBy, newId);
@@ -261,28 +259,28 @@ contract LegitifyRegistryTest is Test {
         _issue();
         vm.prank(adminB);
         vm.expectRevert(R.WrongInstitution.selector);
-        registry.supersede(ID, keccak256("n"), keccak256("nf"), "");
+        registry.supersede(ID, keccak256("n"), keccak256("nf"));
 
         vm.startPrank(opA);
-        registry.supersede(ID, keccak256("n"), keccak256("nf"), "");
+        registry.supersede(ID, keccak256("n"), keccak256("nf"));
         vm.expectRevert(R.AlreadyReplaced.selector);
-        registry.supersede(ID, keccak256("n2"), keccak256("nf2"), "");
+        registry.supersede(ID, keccak256("n2"), keccak256("nf2"));
         registry.revoke(keccak256("n"), R.RevocationReason.IssuedInError);
         vm.expectRevert(R.AlreadyRevoked.selector);
-        registry.supersede(keccak256("n"), keccak256("n3"), keccak256("nf3"), "");
+        registry.supersede(keccak256("n"), keccak256("n3"), keccak256("nf3"));
     }
 
     function test_supersedeCannotReplaceWithItself() public {
         _issue();
         vm.prank(opA);
         vm.expectRevert(R.DuplicateCredential.selector);
-        registry.supersede(ID, ID, keccak256("nf"), "");
+        registry.supersede(ID, ID, keccak256("nf"));
     }
 
     function test_revokedOutranksReplaced() public {
         _issue();
         vm.startPrank(opA);
-        registry.supersede(ID, keccak256("n"), keccak256("nf"), "");
+        registry.supersede(ID, keccak256("n"), keccak256("nf"));
         registry.revoke(ID, R.RevocationReason.Fraud);
         assertEq(uint8(registry.verifyById(ID).status), uint8(R.CredentialStatus.Revoked));
     }
@@ -297,7 +295,7 @@ contract LegitifyRegistryTest is Test {
 
         vm.startPrank(opA);
         vm.expectRevert(R.NotActiveMember.selector);
-        registry.issue(keccak256("2"), keccak256("f2"), "");
+        registry.issue(keccak256("2"), keccak256("f2"));
         vm.expectRevert(R.NotActiveMember.selector);
         registry.revoke(ID, R.RevocationReason.Fraud);
         vm.stopPrank();
@@ -327,20 +325,19 @@ contract LegitifyRegistryTest is Test {
 
     // ---- fuzz
 
-    function testFuzz_issuedCredentialRoundTrips(bytes32 id, bytes32 fileHash, bytes calldata cid) public {
+    function testFuzz_issuedCredentialRoundTrips(bytes32 id, bytes32 fileHash) public {
         vm.assume(id != bytes32(0) && fileHash != bytes32(0));
         vm.prank(opA);
-        registry.issue(id, fileHash, cid);
+        registry.issue(id, fileHash);
         R.Verification memory v = registry.verifyByHash(fileHash);
         assertEq(v.credentialId, id);
-        assertEq(v.credential.storageCid, cid);
     }
 
     function testFuzz_nonMemberCannotWrite(address caller, bytes32 id, bytes32 fileHash) public {
         vm.assume(caller != adminA && caller != adminB && caller != opA);
         vm.startPrank(caller);
         vm.expectRevert(R.NotActiveMember.selector);
-        registry.issue(id, fileHash, "");
+        registry.issue(id, fileHash);
         vm.expectRevert(R.NotActiveMember.selector);
         registry.revoke(id, R.RevocationReason.Fraud);
     }

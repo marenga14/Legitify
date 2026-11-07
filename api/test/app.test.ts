@@ -6,6 +6,9 @@ import type { Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Triage, Triager } from "../src/agent.js";
 import { anchorYesterday } from "../src/anchor.js";
+import { renderEmail } from "../src/emails.js";
+import { credentialIdFor, type Verification } from "../src/chain.js";
+import type { Email } from "../src/mail.js";
 import { appendAudit, dailyRoot, verifyAuditChain } from "../src/audit.js";
 import { createApp, runSlaSweep, syncInstitutions, type Deps } from "../src/app.js";
 import type { Chain, Member, RegistryMatch } from "../src/chain.js";
@@ -29,6 +32,16 @@ const triage = (over: Partial<Triage> = {}): Triage => ({
 let db: Db;
 
 /** Set TEST_DATABASE_URL to run this whole suite against real Postgres. It wipes that database. */
+const NOT_FOUND = {
+  status: "not_found", credentialId: `0x${"0".repeat(64)}`, institution: "", issuedAt: null, revokedAt: null,
+  revocationReason: null, replacedBy: null, fileHash: `0x${"0".repeat(64)}`,
+} as Verification;
+let lookups: unknown[][] = [];
+let lookupFails: (rpcUrl?: string) => boolean = () => false;
+let record: (rpcUrl?: string) => Verification = () => NOT_FOUND;
+const sent: Email[] = [];
+let mailDown = false;
+
 async function freshDb() {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) return openDb();
@@ -65,6 +78,11 @@ beforeEach(async () => {
     getMember: async (a) => members.get(a) ?? { institutionId: 0, role: "none" },
     canIssue: async (a) => members.has(a),
     verifyByHash: async () => match,
+    verify: async (by, value, target) => {
+      lookups.push([by, value, target?.rpcUrl]);
+      if (lookupFails(target?.rpcUrl)) throw new Error("rpc down");
+      return record(target?.rpcUrl);
+    },
     probeNetwork: async () => probe(),
     useNetwork: (rpcUrl, registry) => void networkUsed.push([rpcUrl, registry]),
     listInstitutions: async () => [
@@ -78,6 +96,17 @@ beforeEach(async () => {
     db, chain, triager, sessionSecret: "s".repeat(32), fileMasterKey: "22".repeat(32), dataDir,
     webOrigin: "http://localhost:5173", registry: "0x1111111111111111111111111111111111111111", dailySponsorQuota: 2,
     network: { name: "BOT Chain", chainId: 968, rpcUrl: "https://rpc.bohr.life", explorerUrl: "https://scan.bohr.life" },
+  };
+  sent.length = 0;
+  mailDown = false;
+  lookups = [];
+  lookupFails = () => false;
+  record = () => NOT_FOUND;
+  deps.mailer = {
+    send: async (email) => {
+      if (mailDown) throw new Error("provider down");
+      sent.push(email);
+    },
   };
   app = createApp(deps);
 });
@@ -327,6 +356,29 @@ describe("institution applications", () => {
     const stored = await readFile(path.join(dataDir, "files", `${await pendingId()}-registration.bin`));
     expect(stored.includes(Buffer.from("confidential"))).toBe(false);
   });
+  it("emails the applicant their tracking link, in their language", async () => {
+    const { trackingToken } = await (await apply({ locale: "sw" })).json();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ to: "neema@mbeya.example" });
+    expect(sent[0]!.subject).toContain("Tumepokea");
+    expect(sent[0]!.text).toContain(`http://localhost:5173/apply/${trackingToken}`);
+  });
+  it("sends the rejection reason even though the address is erased", async () => {
+    await apply();
+    const id = await pendingId();
+    sent.length = 0;
+    const owner = await login(platformKey);
+    await app.request(`/platform/applications/${id}/reject`, authed(owner.token, { reason: "No such registration" }));
+    expect(sent.map((m) => m.to)).toEqual(["neema@mbeya.example", "registrar@mbeya.example"]);
+    expect(sent[0]!.text).toContain("No such registration");
+    expect(JSON.stringify((await db.query("SELECT * FROM applications")).rows[0])).not.toContain("neema@");
+  });
+  it("still decides an application when email is down", async () => {
+    await apply();
+    mailDown = true;
+    const owner = await login(platformKey);
+    expect((await app.request(`/platform/applications/${await pendingId()}/reject`, authed(owner.token, { reason: "No such registration" }))).status).toBe(200);
+  });
   it("requires the applicant's ID type, number and consent", async () => {
     expect((await apply({ identityNumber: "" })).status).toBe(400);
     expect((await apply({ identityConsent: "false" })).status).toBe(400);
@@ -411,7 +463,11 @@ describe("institution applications", () => {
     expect((await (await app.request(`/platform/applications/${id}`, authed(token))).json()).on_chain).toBe(false);
     members.set(applicant.address, { institutionId: 2, role: "admin" });
     expect((await (await app.request(`/platform/applications/${id}`, authed(token))).json()).on_chain).toBe(true);
+    sent.length = 0;
     expect((await approve()).status).toBe(200);
+    expect(sent.map((m) => m.to)).toEqual(["neema@mbeya.example", "registrar@mbeya.example"]);
+    expect(sent[0]!.subject).toBe("Welcome to Legitfy, Mbeya College");
+    expect(sent[0]!.text).toContain("http://localhost:5173/sign-in");
     expect(await track(trackingToken)).toMatchObject({ status: "approved" });
     expect((await upload(trackingToken)).status).toBe(409);
     const { rows } = await db.query<{ location: string }>("SELECT location FROM institutions WHERE id = 2");
@@ -655,6 +711,77 @@ describe("audit log", () => {
   });
 });
 
+describe("public verify API", () => {
+  const FOUND = { ...NOT_FOUND, status: "authentic", institution: "University A", issuedAt: "2026-11-07T00:00:00.000Z" } as Verification;
+  const check = (path: string) => app.request(`/public/verify/${path}`);
+  const addNetwork = () => db.query(
+    "INSERT INTO settings (key, value) VALUES ('networks', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+    [JSON.stringify([{ name: "Base", chainId: 8453, rpcUrl: "https://base.example", explorerUrl: "https://x.example", registry: "0x2222222222222222222222222222222222222222" }])],
+  );
+
+  it("answers by short ID with no sign-in, however it's typed", async () => {
+    record = () => FOUND;
+    const res = await check("ud-26-7k4q9-xpm2c");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "authentic", institution: "University A", network: "BOT Chain" });
+    expect(lookups[0]).toEqual(["id", credentialIdFor("UD-26-7K4Q9-XPM2C"), undefined]);
+  });
+  it("answers by full on-chain ID and by file hash", async () => {
+    const hash = `0x${"ab".repeat(32)}`;
+    expect((await check(hash)).status).toBe(200);
+    expect((await check(`file/${hash}`)).status).toBe(200);
+    expect(lookups.map((l) => l[0])).toEqual(["id", "hash"]);
+  });
+  it("rejects anything that isn't an ID or a hash", async () => {
+    expect((await check("nonsense")).status).toBe(400);
+    expect((await check("file/nonsense")).status).toBe(400);
+    expect(lookups).toEqual([]);
+  });
+  it("reports not_found only when every network replied", async () => {
+    await addNetwork();
+    expect(await (await check("UD-26-7K4Q9-XPM2C")).json()).toEqual({ status: "not_found" });
+    lookupFails = (rpc) => rpc === "https://base.example";
+    expect((await check("UD-26-7K4Q9-XPM2C")).status).toBe(503);
+  });
+  it("finds a record on another network even when one is down", async () => {
+    await addNetwork();
+    lookupFails = (rpc) => rpc === undefined;
+    record = () => FOUND;
+    expect(await (await check("UD-26-7K4Q9-XPM2C")).json()).toMatchObject({ status: "authentic", network: "Base" });
+  });
+});
+
+describe("emails", () => {
+  it("escapes form text in the HTML and keeps the subject on one line", () => {
+    const { html, subject } = renderEmail("applicationRejected", "en", { institution: "A\nB", reason: "<script>x</script>", link: "https://x.test/?a=1&b=2" });
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("a=1&amp;b=2");
+    expect(subject).not.toContain("\n");
+  });
+  it("falls back to English for an unknown language", () => {
+    expect(renderEmail("newRequest", "fr" as never, { institution: "Uni" }).subject).toContain("New verification request");
+  });
+  it("tells the requester and the institution about a new request, and keeps answers out of email", async () => {
+    await db.query("UPDATE institutions SET official_email = 'registrar@a.example' WHERE id = 1");
+    const { id, trackingToken } = await (await submit()).json();
+    expect(sent.map((m) => m.subject).join()).toContain("New verification request");
+    expect(sent.some((m) => m.to === "registrar@a.example")).toBe(true);
+    expect(sent.some((m) => m.text.includes(`/track/${trackingToken}`))).toBe(true);
+    sent.length = 0;
+    const { token } = await login(uniAAdmin);
+    await app.request(`/requests/${id}/answer`, authed(token, { outcome: "not_confirmed", note: "No such graduate" }));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.subject).toContain("University A has answered");
+    expect(JSON.stringify(sent[0])).not.toContain("No such graduate");
+  });
+  it("works with no mail provider set up", async () => {
+    deps.mailer = undefined;
+    app = createApp(deps);
+    expect((await submit()).status).toBe(201);
+  });
+});
+
 describe("request history", () => {
   let account = "";
   const history = async (token: string) => (await app.request("/inbox/history", authed(token))).json();
@@ -853,7 +980,9 @@ describe("institution profile", () => {
     const pending = await (await app.request("/platform/changes", authed(owner.token))).json();
     expect(pending[0]).toMatchObject({ id, old_value: "Mbeya", new_value: "Arusha" });
     expect(await (await app.request(`/platform/changes/${id}/file`, authed(owner.token))).text()).toBe(PDF);
+    await db.query("UPDATE institutions SET official_email = 'registrar@a.example' WHERE id = 1");
     expect((await app.request(`/platform/changes/${id}/approve`, authed(owner.token, {}))).status).toBe(200);
+    expect(sent.at(-1)).toMatchObject({ to: "registrar@a.example", subject: "Your city change was approved" });
     expect((await app.request(`/platform/changes/${id}/approve`, authed(owner.token, {}))).status).toBe(409);
     const after = await details(token);
     expect(after).toMatchObject({ city: "Arusha", location: "Arusha, Tanzania" });

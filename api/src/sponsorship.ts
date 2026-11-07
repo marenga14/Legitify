@@ -2,10 +2,10 @@ import { decodeFunctionData, getAddress, parseAbi, type Address, type Hex } from
 
 const accountAbi = parseAbi(["function execute(address dest, uint256 value, bytes func)"]);
 const registryAbi = parseAbi([
-  "function issue(bytes32,bytes32,bytes)",
-  "function issueBatch((bytes32,bytes32,bytes)[])",
+  "function issue(bytes32,bytes32)",
+  "function issueBatch((bytes32,bytes32)[])",
   "function revoke(bytes32,uint8)",
-  "function supersede(bytes32,bytes32,bytes32,bytes)",
+  "function supersede(bytes32,bytes32,bytes32)",
   "function addOperator(address)",
   "function removeOperator(address)",
 ]);

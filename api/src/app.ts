@@ -10,6 +10,8 @@ import { getAddress, isAddress, recoverMessageAddress, type Address, type Hex } 
 import { z } from "zod";
 import type { Triage, Triager } from "./agent.js";
 import { appendAudit } from "./audit.js";
+import { fieldName, renderEmail, type EmailData, type EmailKind, type Locale } from "./emails.js";
+import type { Mailer } from "./mail.js";
 import { credentialIdFor, type Chain, type MemberRole } from "./chain.js";
 import { decryptFile, encryptFile, sha256Hex } from "./crypto.js";
 import type { Db } from "./db.js";
@@ -35,6 +37,8 @@ export interface Deps {
   network: { name: string; chainId: number; rpcUrl: string; explorerUrl: string };
   /** Only when a reverse proxy we run sets x-forwarded-for. Otherwise a client could forge it. */
   trustProxy?: boolean;
+  /** Leave out to send no email. */
+  mailer?: Mailer;
   /** Whether the daily audit fingerprint is being written to the chain. */
   anchoring?: boolean;
   /** Signs an approved UserOperation; absent until a paymaster is deployed. */
@@ -47,6 +51,8 @@ interface Session {
   role: MemberRole;
   level: number;
 }
+const CERTIFICATE_CODE = /^[A-Z]{2,4}-\d{2}-[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/;
+const ON_CHAIN_HASH = /^0x[0-9a-f]{64}$/;
 const INSTITUTION_TYPES = ["university", "college", "school", "professional_body", "government", "other"] as const;
 const ContactForm = z.object({
   website: z.string().trim().max(200).regex(/^(https?:\/\/.+)?$/),
@@ -80,7 +86,7 @@ const SEAL_IMAGE_COLUMNS = { seal: "seal_image_type", emblem: "emblem_type" } as
 type SealImageKind = keyof typeof SEAL_IMAGE_COLUMNS;
 const sealImageKind = (kind: string | undefined): kind is SealImageKind => kind === "seal" || kind === "emblem";
 const CredentialForm = z.object({
-  code: z.string().regex(/^[A-Z]{2,4}-\d{2}-[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/),
+  code: z.string().regex(CERTIFICATE_CODE),
   ownerName: z.string().trim().min(2).max(200),
   title: z.string().trim().min(2).max(200),
   description: z.string().trim().max(2000).default(""),
@@ -125,7 +131,10 @@ export async function savedNetwork(db: Db): Promise<Partial<NetworkSettings>> {
 }
 
 const ApplicationChallenge = z.object({ institutionName: z.string().trim().min(2).max(200) });
+/** Anything unexpected falls back to English, because a language should never fail a form. */
+const FormLocale = z.enum(["en", "sw", "zh"]).catch("en");
 const ApplicationForm = ApplicationChallenge.extend({
+  locale: FormLocale,
   registrationNumber: z.string().trim().min(2).max(100),
   institutionType: z.enum(INSTITUTION_TYPES),
   country: z.string().trim().min(2).max(100),
@@ -172,6 +181,7 @@ const RequestForm = z.object({
   institutionId: z.coerce.number().int().positive(),
   requesterOrg: z.string().trim().min(2).max(200),
   requesterEmail: z.email().max(254),
+  locale: FormLocale,
   subject: z.string().trim().min(3).max(200),
   purpose: z.string().trim().min(3).max(2000),
   consentAgent: z.enum(["true", "false"]).transform((v) => v === "true"),
@@ -222,6 +232,15 @@ export function createApp(deps: Deps) {
   const fileDir = path.join(deps.dataDir, "files");
   const filePath = (id: string) => path.join(fileDir, `${id}.bin`);
   const uploadLimit = bodyLimit({ maxSize: MAX_FILE_BYTES + 64 * 1024, onError: (c) => c.json({ error: "Files can be up to 15 MB." }, 413) });
+  /** Email is a courtesy: a failure here must never undo or block what already happened. */
+  const notify = async (to: (string | null | undefined)[], kind: EmailKind, locale: string, data: EmailData) => {
+    if (!deps.mailer) return;
+    const email = renderEmail(kind, locale as Locale, data);
+    for (const address of new Set(to.filter(Boolean) as string[])) {
+      await deps.mailer.send({ to: address, ...email }).catch((e) => console.error(`email failed: ${kind}`, (e as Error).message));
+    }
+  };
+
   const statusOf = async (fileSha: string) => {
     const match = await chain.verifyByHash(`0x${fileSha}`).catch(() => null);
     return match?.status === "not_found" || !match ? "pending" : match.status;
@@ -272,6 +291,41 @@ export function createApp(deps: Deps) {
   // ------------------------------------------------------------------ public
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  // ----------------------------------------------------------- public verify API
+
+  /** "No record" only counts if every network replied: one that didn't could hold the certificate. */
+  const verifyOnEveryNetwork = async (by: "id" | "hash", value: Hex) => {
+    const main = { ...deps.network, registry: deps.registry, ...(await savedNetwork(db)) };
+    const others = await extraNetworks(db);
+    const results = await Promise.allSettled([
+      chain.verify(by, value).then((record) => ({ ...record, network: main.name })),
+      ...others.map((n) => chain.verify(by, value, { rpcUrl: n.rpcUrl, registry: n.registry as Address }).then((record) => ({ ...record, network: n.name }))),
+    ]);
+    const answers = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    const found = answers.find((r) => r.status !== "not_found");
+    if (found) return found;
+    return results.some((r) => r.status === "rejected") ? null : { status: "not_found" as const };
+  };
+  const verifyAnswer = async (c: Context<Env>, by: "id" | "hash", value: Hex) => {
+    const record = await verifyOnEveryNetwork(by, value);
+    if (!record) return c.json({ error: "The public record can't be reached right now. Try again." }, 503);
+    return c.json(record);
+  };
+
+  app.get("/public/verify/file/:hash", limit(60, 60_000), async (c) => {
+    const hash = c.req.param("hash")!.toLowerCase();
+    if (!ON_CHAIN_HASH.test(hash)) return c.json({ error: "Send the file's SHA-256 hash, starting with 0x." }, 400);
+    return verifyAnswer(c, "hash", hash as Hex);
+  });
+
+  app.get("/public/verify/:id", limit(60, 60_000), async (c) => {
+    const id = c.req.param("id")!.trim();
+    if (ON_CHAIN_HASH.test(id.toLowerCase())) return verifyAnswer(c, "id", id.toLowerCase() as Hex);
+    const code = id.toUpperCase();
+    if (!CERTIFICATE_CODE.test(code)) return c.json({ error: "That isn't a certificate ID." }, 400);
+    return verifyAnswer(c, "id", credentialIdFor(code));
+  });
 
   app.get("/network", async (c) => {
     const logos = await networkLogos(db);
@@ -332,8 +386,8 @@ export function createApp(deps: Deps) {
       if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return c.json({ error: "Attach the document as a PDF." }, 400);
 
       const f = form.data;
-      const inst = await db.query<{ name: string; agent_enabled: boolean }>(
-        "SELECT name, agent_enabled FROM institutions WHERE id = $1 AND active",
+      const inst = await db.query<{ name: string; agent_enabled: boolean; official_email: string; locale: string }>(
+        "SELECT name, agent_enabled, official_email, locale FROM institutions WHERE id = $1 AND active",
         [f.institutionId],
       );
       const institution = inst.rows[0];
@@ -350,11 +404,11 @@ export function createApp(deps: Deps) {
       const now = new Date();
       await db.query(
         `INSERT INTO requests (id, institution_id, requester_org, requester_email, subject, purpose, consent_agent,
-           file_name, file_size, file_sha256, tracking_hash, due_at, registry_status, registry_institution, registry_institution_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+           file_name, file_size, file_sha256, tracking_hash, due_at, registry_status, registry_institution, registry_institution_id, locale)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [id, f.institutionId, f.requesterOrg, f.requesterEmail, f.subject, f.purpose, f.consentAgent,
          file.name.slice(0, 255), bytes.length, fileSha, sha256Hex(trackingToken), dueAt(1, now).toISOString(),
-         match?.status ?? "unchecked", match?.institutionName ?? null, match?.institutionId ?? null],
+         match?.status ?? "unchecked", match?.institutionName ?? null, match?.institutionId ?? null, f.locale],
       );
       await appendAudit(db, {
         requestId: id, institutionId: f.institutionId, actor: "requester", action: "request.received",
@@ -367,6 +421,8 @@ export function createApp(deps: Deps) {
       } else if (match) {
         await applyRouting(id, f.institutionId, 1, { riskLevel: "low", confidence: 1 }, match.status, otherIssuer);
       }
+      await notify([f.requesterEmail], "requestReceived", f.locale, { institution: institution.name, link: `${deps.webOrigin}/track/${trackingToken}` });
+      await notify([institution.official_email], "newRequest", institution.locale, { institution: institution.name, link: `${deps.webOrigin}/app/inbox` });
       return c.json({ id, trackingToken }, 201);
     },
   );
@@ -844,11 +900,11 @@ export function createApp(deps: Deps) {
     const claimed = await db.query(
       `INSERT INTO applications (id, institution_name, registration_number, institution_type, country, city, website,
          official_email, phone, applicant_name, applicant_position, applicant_email, signatory_name, signatory_title, wallet,
-         registration_type, tracking_hash, identity_document, identity_number, identity_consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now()) ON CONFLICT DO NOTHING RETURNING id`,
+         registration_type, tracking_hash, identity_document, identity_number, identity_consent_at, locale)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now(),$20) ON CONFLICT DO NOTHING RETURNING id`,
       [id, f.institutionName, f.registrationNumber, f.institutionType, f.country, f.city, f.website, f.officialEmail, f.phone,
        f.applicantName, f.applicantPosition, f.applicantEmail, f.signatoryName, f.signatoryTitle, wallet, evidence.type, sha256Hex(trackingToken),
-       f.identityDocument, sealIdentityNumber(id, f.identityNumber)],
+       f.identityDocument, sealIdentityNumber(id, f.identityNumber), f.locale],
     );
     if (claimed.rows.length === 0) return c.json({ error: "An application with this registration number or wallet is already open." }, 409);
     try {
@@ -859,6 +915,9 @@ export function createApp(deps: Deps) {
       throw e;
     }
     await appendAudit(db, { requestId: null, institutionId: null, actor: "applicant", action: "application.received", detail: { id } });
+    await notify([f.applicantEmail], "applicationReceived", f.locale, {
+      name: f.applicantName, institution: f.institutionName, link: `${deps.webOrigin}/apply/${trackingToken}`,
+    });
     return c.json({ trackingToken }, 201);
   });
 
@@ -1012,6 +1071,17 @@ export function createApp(deps: Deps) {
     return rows[0] ?? null;
   };
 
+  const notifyChange = async (r: Record<string, any>, kind: "changeApproved" | "changeRejected") => {
+    const { rows } = await db.query<{ name: string; official_email: string; locale: Locale }>(
+      "SELECT name, official_email, locale FROM institutions WHERE id = $1", [r.institution_id],
+    );
+    const i = rows[0];
+    if (!i) return;
+    await notify([i.official_email], kind, i.locale, {
+      institution: i.name, field: fieldName(i.locale, r.field), value: r.new_value, reason: r.review_reason ?? "", link: `${deps.webOrigin}/app/institution`,
+    });
+  };
+
   app.post("/platform/changes/:id/approve", platform, async (c) => {
     const r = await decideChange(c.req.param("id")!, "approved", null);
     if (!r) return c.json({ error: "This request has already been decided." }, 409);
@@ -1021,6 +1091,7 @@ export function createApp(deps: Deps) {
       await db.query("UPDATE institutions SET location = left(city || ', ' || country, 120) WHERE id = $1", [r.institution_id]);
     }
     await appendAudit(db, { requestId: null, institutionId: r.institution_id, actor: "platform", action: "institution.change_approved", detail: { id: r.id, field } });
+    await notifyChange(r, "changeApproved");
     return c.json({ status: "approved" });
   });
 
@@ -1030,6 +1101,7 @@ export function createApp(deps: Deps) {
     const r = await decideChange(c.req.param("id")!, "rejected", body.data.reason);
     if (!r) return c.json({ error: "This request has already been decided." }, 409);
     await appendAudit(db, { requestId: null, institutionId: r.institution_id, actor: "platform", action: "institution.change_rejected", detail: { id: r.id } });
+    await notifyChange(r, "changeRejected");
     return c.json({ status: "rejected" });
   });
 
@@ -1052,15 +1124,18 @@ export function createApp(deps: Deps) {
     await syncInstitutions(db, chain);
     await db.query(
       `UPDATE institutions SET location = $1, website = $2, phone = $3, official_email = $4, registration_number = $5,
-         institution_type = $6, country = $7, city = $8 WHERE id = $9`,
+         institution_type = $6, country = $7, city = $8, locale = $10 WHERE id = $9`,
       [`${a.city}, ${a.country}`.slice(0, 120), a.website, a.phone, a.official_email, a.registration_number,
-       a.institution_type, a.country, a.city, member.institutionId],
+       a.institution_type, a.country, a.city, member.institutionId, a.locale],
     );
     await db.query(
       "UPDATE applications SET status = 'approved', reviewed_at = now(), institution_id = $1 WHERE id = $2",
       [member.institutionId, a.id],
     );
     await appendAudit(db, { requestId: null, institutionId: member.institutionId, actor: "platform", action: "application.approved", detail: { id: a.id } });
+    await notify([a.applicant_email, a.official_email], "applicationApproved", a.locale, {
+      name: a.applicant_name, institution: a.institution_name, link: `${deps.webOrigin}/sign-in`,
+    });
     return c.json({ status: "approved", institutionId: member.institutionId });
   });
 
@@ -1083,6 +1158,10 @@ export function createApp(deps: Deps) {
       [body.data.reason, a.id],
     );
     await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "application.rejected", detail: { id: a.id } });
+    // Uses `a`, read before the erase above, and these addresses aren't kept after this.
+    await notify([a.applicant_email, a.official_email], "applicationRejected", a.locale, {
+      institution: a.institution_name, reason: body.data.reason, link: `${deps.webOrigin}/apply`,
+    });
     return c.json({ status: "rejected" });
   });
 
@@ -1301,6 +1380,8 @@ export function createApp(deps: Deps) {
       requestId: r.id, institutionId: s.institutionId, actor: s.account, action: "request.answered",
       detail: { outcome: body.data.outcome, receipt },
     });
+    const issuer = await db.query<{ name: string }>("SELECT name FROM institutions WHERE id = $1", [s.institutionId]);
+    await notify([r.requester_email], "requestAnswered", r.locale, { institution: issuer.rows[0]?.name });
     return c.json({ receipt });
   });
 

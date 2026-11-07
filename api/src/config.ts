@@ -19,6 +19,10 @@ const schema = z.object({
   ANCHOR_ADDRESS: z.string().optional(),
   ANCHOR_PRIVATE_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** Without this the API sends no email, and everything else keeps working. */
+  RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM: z.string().default("Legitfy <hello@legitfy.dev>"),
+  MAIL_REPLY_TO: z.string().default("support@legitfy.dev"),
   DAILY_SPONSOR_QUOTA: z.coerce.number().default(500),
   TRUST_PROXY: z.stringbool().default(false),
 });

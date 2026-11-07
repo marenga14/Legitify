@@ -97,6 +97,7 @@ const zh: typeof en = {
     none: "无记录", noneBody: "这份文件并非通过 Legitfy 签发。这并不代表它是伪造的，请询问机构。",
   },
   developers: {
+    apiTitle: "核验 API", apiBody: "只需一次网络请求，即可在您自己的系统中核验证书，无需钱包、账户或任何区块链工具。每分钟最多可核验 60 次。", apiStatuses: "status 可能为 authentic、revoked、replaced、suspended 或 not_found。无法连接记录时会返回 503，绝不会返回 not_found。只有 authentic 状态才表示证书有效。",
     title: "在您自己的软件中读取登记册", sub: "凭证记录是公开的。您的应用或智能体可以直接查询，无需密钥和账户。",
     network: "网络", networkValue: "{network}，链 ID {id}", rpc: "RPC", registry: "登记册", notDeployed: "尚未部署到此网络", explorer: "区块浏览器",
     lookup: "查询文件", lookupBefore: "使用 SHA-256 计算文件哈希，然后读取其凭证 ID。", lookupAfter: " 会返回完整状态。ID 为零表示没有记录。",
@@ -149,7 +150,7 @@ const zh: typeof en = {
   },
   theme: { toLight: "切换到浅色主题", toDark: "切换到深色主题" },
   networks: { title: "支持的网络", sub: "公开核验会搜索此处列出的每个网络。" },
-  tracking: { title: "这是您的跟踪链接", requestBody: "这是返回此请求及其答复的唯一途径。请复制并妥善保存，因为我们暂时不会通过邮件发送给您。", applicationBody: "这是返回此申请的唯一途径，上传已签署的信函时也需要它。请复制并妥善保存，因为我们暂时不会通过邮件发送给您。", requestSent: "您的请求已发送给 {institution}。", applicationSent: "我们已收到您的申请。", private: "请像对待密码一样保管：任何拥有此链接的人都能打开此页面。", copyFailed: "您的浏览器阻止了复制。请选中上方链接并手动复制。" },
+  tracking: { title: "这是您的跟踪链接", requestBody: "这是返回此请求及其答复的唯一途径。请复制并妥善保存。", applicationBody: "这是返回此申请的唯一途径，上传已签署的信函时也需要它。请复制并妥善保存。", requestSent: "您的请求已发送给 {institution}。", applicationSent: "我们已收到您的申请。", private: "请像对待密码一样保管：任何拥有此链接的人都能打开此页面。", copyFailed: "您的浏览器阻止了复制。请选中上方链接并手动复制。" },
   showcase: { title: "Legitfy 上的机构", sub: "选择在此展示的已注册机构。" },
   why: {
     title: "核验文件不应取决于您能联系到谁", sub: "证书决定谁被录用、晋升或录取，但核验方式却没有跟上。", problem: "问题所在", solution: "Legitfy 的做法",

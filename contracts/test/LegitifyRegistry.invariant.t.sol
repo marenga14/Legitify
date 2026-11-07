@@ -35,7 +35,7 @@ contract Handler is Test {
         bytes32 id = keccak256(abi.encode("id", ids.length, seed));
         bytes32 fileHash = keccak256(abi.encode("file", ids.length, seed));
         vm.prank(opA);
-        registry.issue(id, fileHash, "");
+        registry.issue(id, fileHash);
         ids.push(id);
         ghostFile[id] = fileHash;
         ++ghostIssued;
@@ -54,7 +54,7 @@ contract Handler is Test {
         bytes32 newId = keccak256(abi.encode("new", ids.length, seed));
         bytes32 newFile = keccak256(abi.encode("newfile", ids.length, seed));
         vm.prank(opA);
-        try registry.supersede(id, newId, newFile, "") {
+        try registry.supersede(id, newId, newFile) {
             ids.push(newId);
             ghostFile[newId] = newFile;
             ghostReplaced[id] = newId;
@@ -65,16 +65,16 @@ contract Handler is Test {
     function attackAsOutsider(uint256 seed, bytes32 fileHash) external {
         bytes32 id = _pick(seed);
         vm.startPrank(outsiders[seed % outsiders.length]);
-        try registry.issue(keccak256(abi.encode(seed, "evil")), fileHash, "") {
+        try registry.issue(keccak256(abi.encode(seed, "evil")), fileHash) {
             revert("outsider issued");
         } catch {}
-        try registry.issue(id, fileHash, "") {
+        try registry.issue(id, fileHash) {
             revert("outsider overwrote");
         } catch {}
         try registry.revoke(id, R.RevocationReason.Fraud) {
             revert("outsider revoked");
         } catch {}
-        try registry.supersede(id, keccak256(abi.encode(seed)), fileHash, "") {
+        try registry.supersede(id, keccak256(abi.encode(seed)), fileHash) {
             revert("outsider superseded");
         } catch {}
         try registry.addOperator(outsiders[0]) {
@@ -90,10 +90,10 @@ contract Handler is Test {
             try registry.revoke(id, R.RevocationReason.Fraud) {
                 revert("rival revoked");
             } catch {}
-            try registry.supersede(id, keccak256(abi.encode(seed, "r")), keccak256(abi.encode(seed, "rf")), "") {
+            try registry.supersede(id, keccak256(abi.encode(seed, "r")), keccak256(abi.encode(seed, "rf"))) {
                 revert("rival superseded");
             } catch {}
-            try registry.issue(id, keccak256(abi.encode(seed, "rf2")), "") {
+            try registry.issue(id, keccak256(abi.encode(seed, "rf2"))) {
                 revert("rival overwrote");
             } catch {}
         }

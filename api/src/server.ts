@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Address, Hex } from "viem";
 import { claudeTriager } from "./agent.js";
 import { anchorYesterday, viemAnchor } from "./anchor.js";
+import { resendMailer } from "./mail.js";
 import { createApp, runSlaSweep, savedNetwork, syncInstitutions } from "./app.js";
 import { viemChain } from "./chain.js";
 import { loadConfig } from "./config.js";
@@ -28,6 +29,9 @@ const app = createApp({
   fileMasterKey: config.FILE_MASTER_KEY,
   dataDir: config.DATA_DIR,
   anchoring: Boolean(config.ANCHOR_ADDRESS && config.ANCHOR_PRIVATE_KEY),
+  mailer: config.RESEND_API_KEY
+    ? resendMailer({ apiKey: config.RESEND_API_KEY, from: config.MAIL_FROM, replyTo: config.MAIL_REPLY_TO })
+    : undefined,
   webOrigin: config.WEB_ORIGIN,
   registry: config.REGISTRY_ADDRESS as Address,
   dailySponsorQuota: config.DAILY_SPONSOR_QUOTA,

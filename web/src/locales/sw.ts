@@ -97,6 +97,7 @@ const sw: typeof en = {
     none: "Hakuna rekodi", noneBody: "Faili hili halikutolewa kupitia Legitfy. Hiyo haimaanishi ni la kughushi, kwa hiyo uliza taasisi.",
   },
   developers: {
+    apiTitle: "API ya uhakiki", apiBody: "Kagua cheti kutoka kwenye mfumo wako kwa ombi moja la mtandao. Huhitaji akaunti ya blockchain, usajili wala zana za blockchain. Inaruhusu ukaguzi 60 kwa dakika.", apiStatuses: "status ni authentic, revoked, replaced, suspended au not_found. Rekodi isipopatikana utapata 503, si not_found. Hali ya authentic pekee ndiyo inamaanisha cheti ni halali.",
     title: "Soma rejista kutoka kwenye programu yako", sub: "Rekodi za vyeti ni za umma. Programu au wakala wako anaweza kuzikagua moja kwa moja, bila ufunguo wala akaunti.",
     network: "Mtandao", networkValue: "{network}, mnyororo {id}", rpc: "RPC", registry: "Rejista", notDeployed: "Bado haijawekwa kwenye mtandao huu", explorer: "Kichunguzi",
     lookup: "Tafuta faili", lookupBefore: "Kokotoa hash ya faili hilo hasa kwa SHA-256, kisha soma kitambulisho chake cha cheti. ", lookupAfter: " hurudisha hali kamili. Kitambulisho cha sufuri kinamaanisha hakuna rekodi.",
@@ -149,7 +150,7 @@ const sw: typeof en = {
   },
   theme: { toLight: "Badili kwenda mandhari nyeupe", toDark: "Badili kwenda mandhari nyeusi" },
   networks: { title: "Mitandao inayotumika", sub: "Ukaguzi wa umma hutafuta kwenye kila mtandao ulioorodheshwa hapa." },
-  tracking: { title: "Hiki ndicho kiungo chako cha ufuatiliaji", requestBody: "Ndiyo njia pekee ya kurudi kwenye ombi hili na jibu lake. Kinakili na ukihifadhi mahali salama, kwa sababu bado hatukitumi kwa barua pepe.", applicationBody: "Ndiyo njia pekee ya kurudi kwenye maombi haya, na utakihitaji kupakia barua iliyosainiwa. Kinakili na ukihifadhi mahali salama, kwa sababu bado hatukitumi kwa barua pepe.", requestSent: "Ombi lako limetumwa kwa {institution}.", applicationSent: "Maombi yako yamepokelewa.", private: "Kilinde kama nenosiri: yeyote mwenye kiungo hiki anaweza kufungua ukurasa huu.", copyFailed: "Kivinjari chako kimezuia kunakili. Chagua kiungo hapo juu na ukinakili kwa mkono." },
+  tracking: { title: "Hiki ndicho kiungo chako cha ufuatiliaji", requestBody: "Ndiyo njia pekee ya kurudi kwenye ombi hili na jibu lake. Kinakili na ukihifadhi mahali salama.", applicationBody: "Ndiyo njia pekee ya kurudi kwenye maombi haya, na utakihitaji kupakia barua iliyosainiwa. Kinakili na ukihifadhi mahali salama.", requestSent: "Ombi lako limetumwa kwa {institution}.", applicationSent: "Maombi yako yamepokelewa.", private: "Kilinde kama nenosiri: yeyote mwenye kiungo hiki anaweza kufungua ukurasa huu.", copyFailed: "Kivinjari chako kimezuia kunakili. Chagua kiungo hapo juu na ukinakili kwa mkono." },
   showcase: { title: "Taasisi zilizo kwenye Legitfy", sub: "Taasisi zilizosajiliwa ambazo zimechagua kuonekana hapa." },
   why: {
     title: "Kuhakiki hati hakupaswi kutegemea unamfahamu nani", sub: "Vyeti huamua nani anaajiriwa, anapandishwa cheo au anapokelewa chuoni. Njia ya kuvihakiki haijaenda na wakati.", problem: "Tatizo", solution: "Legitfy inafanya nini",

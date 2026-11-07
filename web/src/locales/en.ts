@@ -95,6 +95,7 @@ export default {
     none: "No record", noneBody: "This file wasn't issued through Legitfy. That doesn't make it fake, so ask the institution.",
   },
   developers: {
+    apiTitle: "Verify API", apiBody: "Check a certificate from your own system with one web request. You don't need a wallet, an account or any blockchain tools. It allows 60 checks a minute.", apiStatuses: "status is authentic, revoked, replaced, suspended or not_found. If the record can't be reached you get a 503, never not_found. Only authentic means the certificate stands.",
     title: "Read the registry from your own software", sub: "Credential records are public. Your application or agent can check them directly, with no key and no account.",
     network: "Network", networkValue: "{network}, chain {id}", rpc: "RPC", registry: "Registry", notDeployed: "Not deployed on this network yet", explorer: "Explorer",
     lookup: "Look up a file", lookupBefore: "Hash the exact file with SHA-256, then read its credential ID. ", lookupAfter: " returns the full status. A zero ID means no record.",
@@ -147,7 +148,7 @@ export default {
   },
   theme: { toLight: "Switch to light theme", toDark: "Switch to dark theme" },
   networks: { title: "Supported networks", sub: "Public checks search every network listed here." },
-  tracking: { title: "This is your tracking link", requestBody: "It's the only way back to this request and its answer. Copy it and keep it somewhere safe, because we don't email it to you yet.", applicationBody: "It's the only way back to this application, and you'll need it to upload your signed letter. Copy it and keep it somewhere safe, because we don't email it to you yet.", requestSent: "Your request was sent to {institution}.", applicationSent: "Your application was received.", private: "Treat it like a password: anyone with this link can open this page.", copyFailed: "Your browser blocked copying. Select the link above and copy it by hand." },
+  tracking: { title: "This is your tracking link", requestBody: "It's the only way back to this request and its answer. Copy it and keep it somewhere safe.", applicationBody: "It's the only way back to this application, and you'll need it to upload your signed letter. Copy it and keep it somewhere safe.", requestSent: "Your request was sent to {institution}.", applicationSent: "Your application was received.", private: "Treat it like a password: anyone with this link can open this page.", copyFailed: "Your browser blocked copying. Select the link above and copy it by hand." },
   showcase: { title: "Institutions on Legitfy", sub: "Registered institutions that chose to appear here." },
   why: {
     title: "Checking a document shouldn't depend on who you can reach", sub: "Certificates decide who gets hired, promoted or admitted. The way they're checked hasn't kept up.", problem: "The problem", solution: "What Legitfy does",

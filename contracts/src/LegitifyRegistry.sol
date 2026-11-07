@@ -66,13 +66,11 @@ contract LegitifyRegistry is Ownable2Step {
         uint40 revokedAt;
         bytes32 fileHash; // SHA-256 of the final PDF
         bytes32 replacedBy; // credentialId of the corrected version
-        bytes storageCid; // binary CID of the encrypted file; empty if not stored
     }
 
     struct IssueParams {
         bytes32 credentialId;
         bytes32 fileHash;
-        bytes storageCid;
     }
 
     struct Verification {
@@ -189,15 +187,15 @@ contract LegitifyRegistry is Ownable2Step {
 
     // ----------------------------------------------------------------- issuing
 
-    function issue(bytes32 credentialId, bytes32 fileHash, bytes calldata storageCid) external {
-        _issue(_activeInstitution(), credentialId, fileHash, storageCid);
+    function issue(bytes32 credentialId, bytes32 fileHash) external {
+        _issue(_activeInstitution(), credentialId, fileHash);
     }
 
     function issueBatch(IssueParams[] calldata items) external {
         if (items.length == 0 || items.length > MAX_BATCH) revert BatchSize();
         uint32 institutionId = _activeInstitution();
         for (uint256 i; i < items.length; ++i) {
-            _issue(institutionId, items[i].credentialId, items[i].fileHash, items[i].storageCid);
+            _issue(institutionId, items[i].credentialId, items[i].fileHash);
         }
     }
 
@@ -212,17 +210,12 @@ contract LegitifyRegistry is Ownable2Step {
     }
 
     /// @notice Issue a corrected credential and link the old one to it.
-    function supersede(
-        bytes32 credentialId,
-        bytes32 newCredentialId,
-        bytes32 newFileHash,
-        bytes calldata newStorageCid
-    ) external {
+    function supersede(bytes32 credentialId, bytes32 newCredentialId, bytes32 newFileHash) external {
         uint32 institutionId = _activeInstitution();
         Credential storage credential = _ownCredential(credentialId, institutionId);
         if (credential.revokedAt != 0) revert AlreadyRevoked();
         if (credential.replacedBy != bytes32(0)) revert AlreadyReplaced();
-        _issue(institutionId, newCredentialId, newFileHash, newStorageCid);
+        _issue(institutionId, newCredentialId, newFileHash);
         credential.replacedBy = newCredentialId;
         emit CredentialSuperseded(credentialId, newCredentialId, institutionId);
     }
@@ -262,7 +255,7 @@ contract LegitifyRegistry is Ownable2Step {
 
     // --------------------------------------------------------------- internals
 
-    function _issue(uint32 institutionId, bytes32 credentialId, bytes32 fileHash, bytes calldata storageCid) private {
+    function _issue(uint32 institutionId, bytes32 credentialId, bytes32 fileHash) private {
         if (credentialId == bytes32(0) || fileHash == bytes32(0)) revert InvalidCredential();
         if (_credentials[credentialId].issuedAt != 0) revert DuplicateCredential();
         if (credentialIdByHash[fileHash] != bytes32(0)) revert DuplicateFile();
@@ -272,7 +265,6 @@ contract LegitifyRegistry is Ownable2Step {
         credential.institutionId = institutionId;
         credential.issuedAt = uint40(block.timestamp);
         credential.fileHash = fileHash;
-        if (storageCid.length != 0) credential.storageCid = storageCid;
         credentialIdByHash[fileHash] = credentialId;
         ++credentialCount;
         emit CredentialIssued(credentialId, institutionId, msg.sender, fileHash);

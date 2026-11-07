@@ -31,13 +31,13 @@ contract LocalSeed is Script {
         vm.startBroadcast(adminKey);
         registry.addOperator(staff);
         registry.addOperator(operator);
-        registry.issue(keccak256("valid"), vm.envBytes32("VALID_HASH"), "");
-        registry.issue(keccak256("revoked"), vm.envBytes32("REVOKED_HASH"), "");
+        registry.issue(keccak256("valid"), vm.envBytes32("VALID_HASH"));
+        registry.issue(keccak256("revoked"), vm.envBytes32("REVOKED_HASH"));
         registry.revoke(keccak256("revoked"), R.RevocationReason.IssuedInError);
         vm.stopBroadcast();
 
         vm.startBroadcast(otherAdminKey);
-        registry.issue(keccak256("other"), vm.envBytes32("OTHER_HASH"), "");
+        registry.issue(keccak256("other"), vm.envBytes32("OTHER_HASH"));
         vm.stopBroadcast();
 
         console2.log("REGISTRY", address(registry));

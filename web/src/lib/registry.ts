@@ -4,7 +4,7 @@ import { canonicalCode, credentialIdFor } from "./certificateCode";
 import { t } from "./i18n";
 
 const abi = parseAbi([
-  "struct Credential { address issuer; uint32 institutionId; uint40 issuedAt; uint8 revocationReason; uint40 revokedAt; bytes32 fileHash; bytes32 replacedBy; bytes storageCid; }",
+  "struct Credential { address issuer; uint32 institutionId; uint40 issuedAt; uint8 revocationReason; uint40 revokedAt; bytes32 fileHash; bytes32 replacedBy; }",
   "struct Verification { uint8 status; bytes32 credentialId; string institutionName; Credential credential; }",
   "function verifyByHash(bytes32) view returns (Verification)",
   "function verifyById(bytes32) view returns (Verification)",

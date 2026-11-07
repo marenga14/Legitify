@@ -5,7 +5,7 @@ import { t } from "./i18n";
 import { client } from "./registry";
 
 const abi = parseAbi([
-  "function issue(bytes32 credentialId, bytes32 fileHash, bytes storageCid)",
+  "function issue(bytes32 credentialId, bytes32 fileHash)",
   "function addOperator(address account)",
   "function registerInstitution(string name, address admin) returns (uint32)",
   "function setInstitutionStatus(uint32 institutionId, uint8 status)",
@@ -40,7 +40,7 @@ async function send(functionName: string, args: readonly unknown[]) {
   }
 }
 
-export const issue = (credentialId: Hex, fileHash: Hex) => send("issue", [credentialId, fileHash, "0x"]);
+export const issue = (credentialId: Hex, fileHash: Hex) => send("issue", [credentialId, fileHash]);
 export const addOperator = (account: Address) => send("addOperator", [account]);
 export const registerInstitution = (name: string, admin: Address) => send("registerInstitution", [name, admin]);
 export const setInstitutionActive = (id: number, active: boolean) => send("setInstitutionStatus", [id, active ? ACTIVE : SUSPENDED]);

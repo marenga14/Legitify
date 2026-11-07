@@ -78,7 +78,7 @@ contract SponsorshipTest is Test {
     }
 
     function _issueCall() internal view returns (bytes memory) {
-        bytes memory inner = abi.encodeCall(R.issue, (ID, FILE, bytes("")));
+        bytes memory inner = abi.encodeCall(R.issue, (ID, FILE));
         return abi.encodeCall(SimpleAccount.execute, (address(registry), 0, inner));
     }
 

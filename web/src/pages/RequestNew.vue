@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../lib/api";
-import { t } from "../lib/i18n";
+import { currentLocale, t } from "../lib/i18n";
 
 const router = useRouter();
 const institutions = ref<{ id: number; name: string }[]>([]);
@@ -26,6 +26,7 @@ async function submit() {
   try {
     const body = new FormData();
     for (const [k, v] of Object.entries(form)) body.set(k, String(v));
+    body.set("locale", currentLocale());
     body.set("file", file.value);
     const { trackingToken } = await api<{ trackingToken: string }>("/requests", { method: "POST", body });
     router.push({ path: `/track/${trackingToken}`, query: { sent: "1" } });

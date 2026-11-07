@@ -6,7 +6,7 @@ import ApplyHero from "../components/ApplyHero.vue";
 import WalletGuide from "../components/WalletGuide.vue";
 import { api } from "../lib/api";
 import { shortId } from "../lib/certificate";
-import { t } from "../lib/i18n";
+import { currentLocale, t } from "../lib/i18n";
 import { connectWallet, hasWallet, signMessage } from "../lib/wallet";
 
 const ID_TYPES = ["national_id", "passport", "driving_licence", "voter_id"];
@@ -47,6 +47,7 @@ async function submit() {
     const body = new FormData();
     for (const [k, v] of Object.entries(form)) body.set(k, v);
     body.set("confirmed", String(confirmed.value));
+    body.set("locale", currentLocale());
     body.set("identityConsent", String(identityConsent.value));
     body.set("nonce", nonce);
     body.set("signature", signature);
