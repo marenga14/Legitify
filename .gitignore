@@ -20,5 +20,8 @@ keystore/
 
 .DS_Store
 
+# local chain state and sample files
+.local/
+
 # api runtime data: contains encrypted documents
 .data/

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import BarChart from "../../components/console/BarChart.vue";
+import BrandMark from "../../components/BrandMark.vue";
 import { api, session } from "../../lib/api";
+import { t } from "../../lib/i18n";
 
 interface Stats {
   operators: number; documents: number; openRequests: number; answered: number;
@@ -21,29 +23,29 @@ const cards = computed(() => {
   const s = stats.value;
   if (!s) return [];
   return [
-    ...(session.current?.role === "admin" ? [{ name: "Operators", number: s.operators, to: "/app/operators" }] : []),
-    { name: "Documents", number: s.documents, to: "/app/documents" },
-    { name: "Open requests", number: s.openRequests, to: "/app/inbox" },
-    { name: "Answered", number: s.answered, to: "/app/inbox" },
+    ...(session.current?.role === "admin" ? [{ name: t("dashboard.operators"), number: s.operators, to: "/app/operators" }] : []),
+    { name: t("dashboard.documents"), number: s.documents, to: "/app/documents" },
+    { name: t("dashboard.openRequests"), number: s.openRequests, to: "/app/inbox" },
+    { name: t("dashboard.answered"), number: s.answered, to: "/app/inbox" },
   ];
 });
 </script>
 
 <template>
-  <h1 class="sr-only">Dashboard</h1>
+  <h1 class="sr-only">{{ t("dashboard.title") }}</h1>
   <p v-if="error" class="text-seal" role="alert">{{ error }}</p>
-  <div class="relative flex min-h-36 items-center justify-between overflow-hidden rounded-md bg-gradient-to-r from-white via-[#d6eef8] to-sky px-7 py-5 shadow-sm">
-    <p class="text-2xl font-bold text-harbour">{{ institution }}</p>
-    <span class="grid size-28 shrink-0 place-items-center rounded-full border border-approve/50 bg-white"><img src="/seal.jpg" alt="" class="crest-mark size-20" /></span>
+  <div class="console-banner flex min-h-36 items-center justify-between px-7 py-5">
+    <p class="relative z-1 text-3xl font-bold tracking-tight">{{ institution }}</p>
+    <span class="relative z-1 grid size-24 shrink-0 place-items-center rounded-2xl bg-white shadow-lg"><BrandMark class="brand-on-white h-12 w-auto" /></span>
   </div>
   <div v-if="stats" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    <RouterLink v-for="c in cards" :key="c.name" :to="c.to" class="panel overflow-hidden hover:shadow-md">
-      <span class="block border-b border-[#dfe5e9] bg-[#f1f3f5] px-4 py-2.5 text-lg font-bold text-harbour">{{ c.name }}</span>
-      <span class="block py-6 text-center text-6xl font-extrabold text-harbour">{{ c.number.toLocaleString() }}</span>
+    <RouterLink v-for="c in cards" :key="c.name" :to="c.to" class="panel stat-card overflow-hidden">
+      <span class="block border-b border-line bg-wash px-4 py-2.5 font-semibold text-harbour">{{ c.name }}</span>
+      <span class="block py-6 text-center text-6xl font-extrabold"><span class="text-verifiable">{{ c.number.toLocaleString() }}</span></span>
     </RouterLink>
   </div>
   <div v-if="stats" class="mt-4 grid gap-3 xl:grid-cols-2">
-    <BarChart title="Certificates created" noun="certificates" :data="stats.documentsByMonth" />
-    <BarChart title="Requests received" noun="requests" :data="stats.requestsByMonth" />
+    <BarChart :title="t('dashboard.certificatesChart')" :noun="t('dashboard.certificatesNoun')" :data="stats.documentsByMonth" />
+    <BarChart :title="t('dashboard.requestsChart')" :noun="t('dashboard.requestsNoun')" :data="stats.requestsByMonth" />
   </div>
 </template>

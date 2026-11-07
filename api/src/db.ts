@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS institutions (
   admin TEXT NOT NULL DEFAULT '',
   location TEXT NOT NULL DEFAULT ''
 );
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS logo_type TEXT;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE IF NOT EXISTS staff (
   account TEXT PRIMARY KEY,
   institution_id INTEGER NOT NULL REFERENCES institutions(id),
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS requests (
   due_at TIMESTAMPTZ NOT NULL,
   registry_status TEXT NOT NULL DEFAULT 'unchecked',
   registry_institution TEXT,
+  registry_institution_id INTEGER,
   triage_status TEXT NOT NULL DEFAULT 'not_run',
   triage JSONB,
   answer_outcome TEXT,
@@ -49,6 +52,7 @@ CREATE TABLE IF NOT EXISTS requests (
   receipt_hash TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS registry_institution_id INTEGER;
 CREATE INDEX IF NOT EXISTS requests_inbox ON requests (institution_id, status, due_at);
 CREATE TABLE IF NOT EXISTS audit_log (
   seq BIGSERIAL PRIMARY KEY,
@@ -88,6 +92,38 @@ CREATE TABLE IF NOT EXISTS shares (
 CREATE TABLE IF NOT EXISTS login_nonces (
   nonce TEXT PRIMARY KEY,
   expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS applications (
+  id UUID PRIMARY KEY,
+  institution_name TEXT NOT NULL,
+  registration_number TEXT NOT NULL,
+  institution_type TEXT NOT NULL,
+  country TEXT NOT NULL,
+  city TEXT NOT NULL,
+  website TEXT NOT NULL DEFAULT '',
+  official_email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  applicant_name TEXT NOT NULL,
+  applicant_position TEXT NOT NULL,
+  applicant_email TEXT NOT NULL DEFAULT '',
+  signatory_name TEXT NOT NULL,
+  signatory_title TEXT NOT NULL,
+  wallet TEXT NOT NULL,
+  registration_type TEXT NOT NULL,
+  mandate_type TEXT,
+  status TEXT NOT NULL DEFAULT 'awaiting_mandate',
+  review_reason TEXT,
+  reviewed_at TIMESTAMPTZ,
+  institution_id INTEGER,
+  tracking_hash TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS applicant_email TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS applications_open_number ON applications (lower(registration_number)) WHERE status <> 'rejected';
+CREATE UNIQUE INDEX IF NOT EXISTS applications_open_wallet ON applications (wallet) WHERE status <> 'rejected';
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sponsorship_usage (
   institution_id INTEGER NOT NULL,

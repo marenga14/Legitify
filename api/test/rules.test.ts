@@ -20,6 +20,12 @@ describe("routeAfterTriage", () => {
   it("treats a revoked credential as high priority even when the agent says low", () => {
     expect(route({ registryStatus: "revoked", risk: "low", confidence: 1 })).toMatchObject({ level: 2, priority: "high" });
   });
+  it("sends a file another institution issued to the registrar, even when the agent says low", () => {
+    expect(route({ otherIssuer: true, risk: "low", confidence: 1 })).toMatchObject({ level: 2, priority: "high" });
+  });
+  it("keeps the revoked reason when both apply", () => {
+    expect(route({ otherIssuer: true, registryStatus: "revoked" }).reason).toMatch(/revoked/);
+  });
   it("never lowers the level, whatever the document claims", () => {
     for (const risk of ["low", "medium", "high"] as const) {
       expect(route({ level: 3, risk, confidence: 1 }).level).toBe(3);

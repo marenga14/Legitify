@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import BrandMark from "./BrandMark.vue";
 import { computed, ref } from "vue";
 import type { Hex } from "viem";
 import { Check, CircleDashed, FileSearch, ScanLine, TriangleAlert, X } from "lucide-vue-next";
 import Fingerprint from "./Fingerprint.vue";
 import VerdictPanel from "./VerdictPanel.vue";
 import { sha256File } from "../lib/hash";
-import { verifyByHash, type Verdict } from "../lib/registry";
+import { t } from "../lib/i18n";
+import { registryConnected, verifyByHash, type Verdict } from "../lib/registry";
 
 type Phase = "ready" | "hashing" | "reading" | "done" | "unreachable";
 const phase = ref<Phase>("ready");
@@ -34,10 +36,10 @@ async function check(file: File | undefined) {
     if (mine !== run) return;
     verdict.value = found;
     phase.value = "done";
-  } catch (e) {
+  } catch {
     if (mine !== run) return;
     phase.value = "unreachable";
-    error.value = e instanceof Error && e.message.includes("connected") ? e.message : "The public record can't be reached right now. Your file wasn't sent anywhere. Try again shortly.";
+    error.value = t(registryConnected ? "errors.recordUnreachable" : "errors.registryOff");
   }
 }
 function picked(e: Event) {
@@ -55,16 +57,16 @@ defineExpose({ choose });
 /** Every word and colour here comes from the real check. Nothing says "issued" before a verdict does. */
 const status = computed(() => {
   const v = verdict.value;
-  if (phase.value === "hashing") return { icon: ScanLine, tone: "wait", title: "Computing fingerprint", body: fileName.value };
-  if (phase.value === "reading") return { icon: FileSearch, tone: "wait", title: "Reading the public record", body: fileName.value };
-  if (phase.value === "unreachable") return { icon: TriangleAlert, tone: "warn", title: "Not checked", body: "Fingerprint computed, record unavailable" };
-  if (!v) return { icon: CircleDashed, tone: "wait", title: "Ready to check", body: "Drop a file or choose one" };
+  if (phase.value === "hashing") return { icon: ScanLine, tone: "wait", title: t("verify.hashing"), body: fileName.value };
+  if (phase.value === "reading") return { icon: FileSearch, tone: "wait", title: t("verify.reading"), body: fileName.value };
+  if (phase.value === "unreachable") return { icon: TriangleAlert, tone: "warn", title: t("verify.notChecked"), body: t("verify.notCheckedBody") };
+  if (!v) return { icon: CircleDashed, tone: "wait", title: t("verify.ready"), body: t("verify.readyBody") };
   switch (v.status) {
-    case "authentic": return { icon: Check, tone: "good", title: "On the public record", body: `Issued by ${v.institution}` };
-    case "revoked": return { icon: X, tone: "bad", title: "Revoked", body: `By ${v.institution}` };
-    case "replaced": return { icon: TriangleAlert, tone: "warn", title: "Replaced", body: "A newer version exists" };
-    case "suspended": return { icon: TriangleAlert, tone: "warn", title: "Issuer suspended", body: v.institution };
-    default: return { icon: CircleDashed, tone: "wait", title: "No record found", body: "That doesn't make it fake" };
+    case "authentic": return { icon: Check, tone: "good", title: t("verify.onRecord"), body: t("verify.issuedBy", { institution: v.institution }) };
+    case "revoked": return { icon: X, tone: "bad", title: t("verify.revoked"), body: t("verify.revokedBy", { institution: v.institution }) };
+    case "replaced": return { icon: TriangleAlert, tone: "warn", title: t("verify.replaced"), body: t("verify.replacedBody") };
+    case "suspended": return { icon: TriangleAlert, tone: "warn", title: t("verify.issuerSuspended"), body: v.institution };
+    default: return { icon: CircleDashed, tone: "wait", title: t("verify.noRecord"), body: t("verify.noRecordBody") };
   }
 });
 </script>
@@ -74,7 +76,7 @@ const status = computed(() => {
     <button
       type="button"
       :class="['scene', dragging && 'is-dragging', phase === 'hashing' && 'is-scanning', `tone-${status.tone}`]"
-      :aria-label="fileName ? 'Check another document' : 'Check a document: choose a file'"
+      :aria-label="fileName ? t('verify.another') : t('verify.choose')"
       @click="choose"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
@@ -94,8 +96,8 @@ const status = computed(() => {
 
       <span class="sheet" aria-hidden="true">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <img src="/seal.jpg" alt="" class="crest crest-mark" />
-        <span class="sheet-name">{{ fileName || "Your document" }}</span>
+        <BrandMark class="crest brand-on-white" />
+        <span class="sheet-name">{{ fileName || t("verify.yourDocument") }}</span>
         <span class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="beam"></span>
       </span>
@@ -106,15 +108,15 @@ const status = computed(() => {
         <span class="status-icon"><component :is="status.icon" class="size-5" aria-hidden="true" /></span>
         <span class="min-w-0 text-left">
           <span class="block font-semibold leading-tight text-white">{{ status.title }}</span>
-          <span class="mt-0.5 block truncate text-sm text-ink-soft">{{ status.body }}</span>
+          <span class="status-body mt-0.5 block truncate text-sm">{{ status.body }}</span>
         </span>
       </span>
     </button>
     <input ref="input" type="file" class="sr-only" tabindex="-1" aria-hidden="true" @change="picked" />
 
     <div class="mt-3 text-center text-sm text-ink-soft">
-      <p v-if="fileHash"><span class="sr-only">File fingerprint: </span><span class="hash text-periwinkle" data-testid="file-hash">{{ fileHash }}</span></p>
-      <p class="mt-1">Your file stays on this device. Only its fingerprint is compared.</p>
+      <p v-if="fileHash"><span class="sr-only">{{ t("verify.fingerprintLabel") }}</span><span class="hash text-periwinkle" data-testid="file-hash">{{ fileHash }}</span></p>
+      <p class="mt-1">{{ t("verify.privacy") }}</p>
     </div>
     <div class="mt-5" aria-live="polite">
       <div v-if="verdict" class="glass p-6"><VerdictPanel :verdict="verdict" :file-hash="fileHash" /></div>
@@ -137,7 +139,7 @@ const status = computed(() => {
   transition: transform 0.3s ease;
 }
 .scene:hover .sheet, .is-dragging .sheet { transform: rotateY(-10deg) rotateX(3deg) rotateZ(3deg) scale(1.02); }
-.crest { width: 34%; aspect-ratio: 1; }
+.crest { width: 26%; height: auto; margin-block: 0.4rem; }
 .sheet-name { margin-top: 3%; max-width: 100%; font-size: clamp(0.65rem, 1.2vw, 0.85rem); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lines { width: 100%; margin-top: 7%; display: grid; gap: 0.6rem; }
 .lines i { display: block; height: 0.42rem; border-radius: 3px; background: rgb(60 50 170 / 0.32); }
@@ -158,12 +160,16 @@ const status = computed(() => {
   background: radial-gradient(circle, rgb(124 77 255 / 0.3), rgb(10 9 48 / 0.55) 68%);
   box-shadow: 0 0 0 1px rgb(143 168 255 / 0.4), 0 0 0 14px rgb(143 168 255 / 0.05), 0 0 0 15px rgb(143 168 255 / 0.2), 0 0 50px rgb(124 77 255 / 0.5);
 }
+html[data-theme="light"] .print-disc { background: radial-gradient(circle, #fff 45%, #e7e4fb); }
 
 .status {
   right: 4%; bottom: 17%; display: flex; align-items: center; gap: 0.75rem; width: min(66%, 18rem); padding: 0.8rem 1rem;
   background: rgb(19 16 74 / 0.88); backdrop-filter: blur(10px); border: 1px solid rgb(143 168 255 / 0.45); border-radius: 12px;
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.45);
 }
+/* This card stays dark in both themes, so its text can't follow the page. */
+.status { color: #f4f5ff; }
+.status-body { color: #c9cdf0; }
 .status-icon { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: rgb(143 168 255 / 0.2); color: #dfe4ff; }
 .tone-good .status-icon { background: var(--color-approve); color: #06291b; }
 .tone-bad .status-icon { background: var(--color-seal); color: #3b0606; }

@@ -1,11 +1,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { sign, verify } from "hono/jwt";
-import { recoverMessageAddress, type Address, type Hex } from "viem";
+import { getAddress, isAddress, recoverMessageAddress, type Address, type Hex } from "viem";
 import { z } from "zod";
 import type { Triage, Triager } from "./agent.js";
 import { appendAudit } from "./audit.js";
@@ -16,6 +17,7 @@ import { dueAt, escalateForSla, routeAfterTriage } from "./escalation.js";
 import { evaluateSponsorship } from "./sponsorship.js";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_LOGO_BYTES = 1024 * 1024;
 const SESSION_SECONDS = 3600;
 const NONCE_SECONDS = 300;
 
@@ -29,6 +31,10 @@ export interface Deps {
   webOrigin: string;
   registry: Address;
   dailySponsorQuota: number;
+  /** What applies until the platform admin saves network details. */
+  network: { name: string; chainId: number; rpcUrl: string; explorerUrl: string };
+  /** Only when a reverse proxy we run sets x-forwarded-for. Otherwise a client could forge it. */
+  trustProxy?: boolean;
   /** Signs an approved UserOperation; absent until a paymaster is deployed. */
   signSponsorship?: (op: Record<string, unknown>) => Promise<{ paymasterAndData: Hex; validUntil: number }>;
 }
@@ -51,6 +57,67 @@ const ShareForm = z.object({
   expiresInDays: z.number().int().min(1).max(90).default(14),
 });
 const MONTHS_SHOWN = 6;
+
+const httpUrl = z.url({ protocol: /^https?$/ }).max(300);
+const NetworkForm = z.object({
+  name: z.string().trim().min(2).max(80),
+  chainId: z.number().int().positive(),
+  rpcUrl: httpUrl,
+  explorerUrl: httpUrl,
+  registry: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+});
+export type NetworkSettings = z.infer<typeof NetworkForm>;
+const MAX_EXTRA_NETWORKS = 10;
+
+/** Networks public checks also search. Issuing and sign-in stay on the main network. */
+const extraNetworks = async (db: Db): Promise<NetworkSettings[]> => {
+  const { rows } = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = 'networks'");
+  return rows[0] ? JSON.parse(rows[0].value) : [];
+};
+const saveExtraNetworks = (db: Db, networks: NetworkSettings[]) => db.query(
+  "INSERT INTO settings (key, value) VALUES ('networks', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+  [JSON.stringify(networks)],
+);
+const networkLogos = async (db: Db): Promise<Record<string, string>> => {
+  const { rows } = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = 'network_logos'");
+  return rows[0] ? JSON.parse(rows[0].value) : {};
+};
+
+/** Saved details override the deployment's defaults. */
+export async function savedNetwork(db: Db): Promise<Partial<NetworkSettings>> {
+  const { rows } = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = 'network'");
+  return rows[0] ? JSON.parse(rows[0].value) : {};
+}
+
+const ApplicationChallenge = z.object({ institutionName: z.string().trim().min(2).max(200) });
+const ApplicationForm = ApplicationChallenge.extend({
+  registrationNumber: z.string().trim().min(2).max(100),
+  institutionType: z.enum(["university", "college", "school", "professional_body", "government", "other"]),
+  country: z.string().trim().min(2).max(100),
+  city: z.string().trim().min(2).max(100),
+  website: z.string().trim().max(200).default(""),
+  officialEmail: z.email().max(254),
+  phone: z.string().trim().min(5).max(40),
+  applicantName: z.string().trim().min(2).max(120),
+  applicantPosition: z.string().trim().min(2).max(120),
+  applicantEmail: z.email().max(254),
+  signatoryName: z.string().trim().min(2).max(120),
+  signatoryTitle: z.string().trim().min(2).max(120),
+  confirmed: z.literal("true"),
+  nonce: z.string().regex(/^[0-9a-f]{32}$/),
+  signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
+});
+const applicationMessage = (institutionName: string, nonce: string) =>
+  `Apply to Legitfy with this wallet as administrator of:\n${institutionName}\nNonce: ${nonce}`;
+type EvidenceKind = "registration" | "mandate";
+const evidenceFile = (id: string, kind: EvidenceKind) => `${id}-${kind}`;
+/** Sealed letters are often phone photos, so these accept images as well as PDFs. */
+function evidenceType(bytes: Buffer): string | null {
+  if (bytes.subarray(0, 5).toString("latin1") === "%PDF-") return "application/pdf";
+  if (bytes.subarray(0, 4).toString("hex") === "89504e47") return "image/png";
+  if (bytes.subarray(0, 3).toString("hex") === "ffd8ff") return "image/jpeg";
+  return null;
+}
 
 /** Zero-filled monthly counts, so empty months still appear on the chart. */
 function monthlySeries(rows: { month: string; n: number }[], now = new Date()) {
@@ -79,12 +146,30 @@ const Answer = z
   })
   .refine((a) => a.outcome === "confirmed" || a.note.length > 0, { message: "Explain this outcome in a note" });
 
+const MAX_TRACKED_CLIENTS = 10_000;
+
+/** A proxy appends the address it saw, so only the last entry can't be forged by the client. */
+function clientKey(c: Context, trustProxy: boolean) {
+  if (trustProxy) {
+    const forwarded = c.req.header("x-forwarded-for")?.split(",").at(-1)?.trim();
+    if (forwarded) return forwarded;
+  }
+  try {
+    return getConnInfo(c).remote.address ?? "local";
+  } catch {
+    return "local";
+  }
+}
+
 /** Small per-process limiter for public writes. Put a real one at the edge in production. */
-function rateLimit(max: number, windowMs: number) {
+function rateLimit(max: number, windowMs: number, trustProxy: boolean) {
   const hits = new Map<string, { n: number; reset: number }>();
   return async (c: Context, next: () => Promise<void>) => {
-    const key = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    const key = clientKey(c, trustProxy);
     const now = Date.now();
+    if (hits.size > MAX_TRACKED_CLIENTS) {
+      for (const [client, hit] of hits) if (hit.reset < now) hits.delete(client);
+    }
     const hit = hits.get(key);
     if (!hit || hit.reset < now) hits.set(key, { n: 1, reset: now + windowMs });
     else if (++hit.n > max) return c.json({ error: "Too many requests. Try again later." }, 429);
@@ -95,6 +180,7 @@ function rateLimit(max: number, windowMs: number) {
 export function createApp(deps: Deps) {
   const { db, chain } = deps;
   const app = new Hono<Env>();
+  const limit = (max: number, windowMs: number) => rateLimit(max, windowMs, deps.trustProxy ?? false);
   const fileDir = path.join(deps.dataDir, "files");
   const filePath = (id: string) => path.join(fileDir, `${id}.bin`);
   const uploadLimit = bodyLimit({ maxSize: MAX_FILE_BYTES + 64 * 1024, onError: (c) => c.json({ error: "Files can be up to 15 MB." }, 413) });
@@ -149,14 +235,53 @@ export function createApp(deps: Deps) {
 
   app.get("/health", (c) => c.json({ ok: true }));
 
+  app.get("/network", async (c) => {
+    const logos = await networkLogos(db);
+    const main = { ...deps.network, registry: deps.registry, ...(await savedNetwork(db)) };
+    return c.json({
+      ...main, hasLogo: String(main.chainId) in logos,
+      others: (await extraNetworks(db)).map((n) => ({ ...n, hasLogo: String(n.chainId) in logos })),
+    });
+  });
+
+  app.get("/networks/:chainId/logo", async (c) => {
+    const id = Number(c.req.param("chainId"));
+    const type = (await networkLogos(db))[String(id)];
+    if (!Number.isInteger(id) || !type) return c.json({ error: "Not found." }, 404);
+    return c.body(new Uint8Array(await readFile(filePath(`network-logo-${id}`))), 200, {
+      "content-type": type, "cache-control": "public, max-age=300", "x-content-type-options": "nosniff",
+    });
+  });
+
   app.get("/institutions", async (c) => {
     const { rows } = await db.query("SELECT id, name FROM institutions WHERE active ORDER BY name");
     return c.json(rows);
   });
 
+  /** Only institutions that chose to appear, so being registered never implies an endorsement. */
+  app.get("/institutions/showcase", async (c) => {
+    const { rows } = await db.query(
+      "SELECT id, name, location FROM institutions WHERE active AND listed AND logo_type IS NOT NULL ORDER BY name LIMIT 60",
+    );
+    return c.json(rows);
+  });
+
+  app.get("/institutions/:id/logo", async (c) => {
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id)) return c.json({ error: "Not found." }, 404);
+    const { rows } = await db.query<{ logo_type: string }>(
+      "SELECT logo_type FROM institutions WHERE id = $1 AND active AND listed AND logo_type IS NOT NULL", [id],
+    );
+    if (!rows[0]) return c.json({ error: "Not found." }, 404);
+    const logo = await readFile(filePath(`logo-${id}`));
+    return c.body(new Uint8Array(logo), 200, {
+      "content-type": rows[0].logo_type, "cache-control": "public, max-age=300", "x-content-type-options": "nosniff",
+    });
+  });
+
   app.post(
     "/requests",
-    rateLimit(10, 60_000),
+    limit(10, 60_000),
     uploadLimit,
     async (c) => {
       const body = await c.req.parseBody();
@@ -187,21 +312,22 @@ export function createApp(deps: Deps) {
       const now = new Date();
       await db.query(
         `INSERT INTO requests (id, institution_id, requester_org, requester_email, subject, purpose, consent_agent,
-           file_name, file_size, file_sha256, tracking_hash, due_at, registry_status, registry_institution)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+           file_name, file_size, file_sha256, tracking_hash, due_at, registry_status, registry_institution, registry_institution_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
         [id, f.institutionId, f.requesterOrg, f.requesterEmail, f.subject, f.purpose, f.consentAgent,
          file.name.slice(0, 255), bytes.length, fileSha, sha256Hex(trackingToken), dueAt(1, now).toISOString(),
-         match?.status ?? "unchecked", match?.institutionName ?? null],
+         match?.status ?? "unchecked", match?.institutionName ?? null, match?.institutionId ?? null],
       );
       await appendAudit(db, {
         requestId: id, institutionId: f.institutionId, actor: "requester", action: "request.received",
         detail: { fileSha, consentAgent: f.consentAgent },
       });
 
+      const otherIssuer = match?.institutionId != null && match.institutionId !== f.institutionId;
       if (deps.triager && institution.agent_enabled && f.consentAgent) {
-        await runTriage(id, f.institutionId, bytes, f.subject, institution.name, match?.status ?? "unchecked");
+        await runTriage(id, f.institutionId, bytes, f.subject, institution.name, match?.status ?? "unchecked", otherIssuer);
       } else if (match) {
-        await applyRouting(id, f.institutionId, 1, { riskLevel: "low", confidence: 1 }, match.status);
+        await applyRouting(id, f.institutionId, 1, { riskLevel: "low", confidence: 1 }, match.status, otherIssuer);
       }
       return c.json({ id, trackingToken }, 201);
     },
@@ -209,11 +335,12 @@ export function createApp(deps: Deps) {
 
   const applyRouting = async (
     id: string, institutionId: number, level: number,
-    t: Pick<Triage, "riskLevel" | "confidence">, registryStatus: string,
+    t: Pick<Triage, "riskLevel" | "confidence">, registryStatus: string, otherIssuer: boolean,
   ) => {
     const routing = routeAfterTriage({
       level, risk: t.riskLevel, confidence: t.confidence,
       registryStatus: registryStatus === "suspended" || registryStatus === "revoked" ? registryStatus : "ok",
+      otherIssuer,
     });
     await db.query(
       `UPDATE requests SET level = $1, priority = $2, escalation_reason = COALESCE($3, escalation_reason),
@@ -229,7 +356,7 @@ export function createApp(deps: Deps) {
   };
 
   const runTriage = async (
-    id: string, institutionId: number, bytes: Buffer, subject: string, institution: string, registryStatus: string,
+    id: string, institutionId: number, bytes: Buffer, subject: string, institution: string, registryStatus: string, otherIssuer: boolean,
   ) => {
     let triage: Triage | null = null;
     try {
@@ -247,7 +374,7 @@ export function createApp(deps: Deps) {
       requestId: id, institutionId, actor: "agent", action: "triage.done",
       detail: { risk: triage.riskLevel, confidence: triage.confidence },
     });
-    await applyRouting(id, institutionId, 1, triage, registryStatus);
+    await applyRouting(id, institutionId, 1, triage, registryStatus, otherIssuer);
   };
 
   app.get("/requests/track/:token", async (c) => {
@@ -267,14 +394,14 @@ export function createApp(deps: Deps) {
 
   // -------------------------------------------------------------------- auth
 
-  app.post("/auth/challenge", rateLimit(30, 60_000), async (c) => {
+  app.post("/auth/challenge", limit(30, 60_000), async (c) => {
     const nonce = randomBytes(16).toString("hex");
     const expires = new Date(Date.now() + NONCE_SECONDS * 1000);
     await db.query("INSERT INTO login_nonces (nonce, expires_at) VALUES ($1, $2)", [nonce, expires.toISOString()]);
-    return c.json({ nonce, message: `Sign in to Legitify\nNonce: ${nonce}` });
+    return c.json({ nonce, message: `Sign in to Legitfy\nNonce: ${nonce}` });
   });
 
-  app.post("/auth/login", rateLimit(30, 60_000), async (c) => {
+  app.post("/auth/login", limit(30, 60_000), async (c) => {
     const body = z
       .object({ nonce: z.string().regex(/^[0-9a-f]{32}$/), signature: z.string().regex(/^0x[0-9a-fA-F]+$/) })
       .safeParse(await c.req.json().catch(() => null));
@@ -283,7 +410,7 @@ export function createApp(deps: Deps) {
     if (used.rows.length === 0) return c.json({ error: "Sign-in expired. Try again." }, 401);
 
     const owner = await recoverMessageAddress({
-      message: `Sign in to Legitify\nNonce: ${body.data.nonce}`,
+      message: `Sign in to Legitfy\nNonce: ${body.data.nonce}`,
       signature: body.data.signature as Hex,
     });
     const sign_ = (sub: Address) =>
@@ -309,11 +436,14 @@ export function createApp(deps: Deps) {
 
   app.get("/me", staff, async (c) => {
     const s = c.get("session");
-    const { rows } = await db.query<{ name: string; agent_enabled: boolean }>(
-      "SELECT name, agent_enabled FROM institutions WHERE id = $1",
+    const { rows } = await db.query<{ name: string; agent_enabled: boolean; listed: boolean; logo_type: string | null }>(
+      "SELECT name, agent_enabled, listed, logo_type FROM institutions WHERE id = $1",
       [s.institutionId],
     );
-    return c.json({ ...s, institution: rows[0]?.name, agentEnabled: rows[0]?.agent_enabled ?? false });
+    return c.json({
+      ...s, institution: rows[0]?.name, agentEnabled: rows[0]?.agent_enabled ?? false,
+      listed: rows[0]?.listed ?? false, hasLogo: Boolean(rows[0]?.logo_type),
+    });
   });
 
   app.put("/institution/agent", staff, async (c) => {
@@ -328,19 +458,53 @@ export function createApp(deps: Deps) {
     return c.json(body.data);
   });
 
+  /** PNG or JPEG only: an SVG can carry script, and this file is served publicly. */
+  app.post("/institution/logo", staff, uploadLimit, async (c) => {
+    const s = c.get("session");
+    if (s.role !== "admin") return c.json({ error: "Only the institution admin can change this." }, 403);
+    const file = (await c.req.parseBody()).file;
+    if (!(file instanceof File)) return c.json({ error: "Upload the logo as a PNG or JPEG." }, 400);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (bytes.length > MAX_LOGO_BYTES) return c.json({ error: "Logos can be up to 1 MB." }, 413);
+    const type = evidenceType(bytes);
+    if (!type?.startsWith("image/")) return c.json({ error: "Upload the logo as a PNG or JPEG." }, 400);
+    await mkdir(fileDir, { recursive: true });
+    await writeFile(filePath(`logo-${s.institutionId}`), bytes);
+    await db.query("UPDATE institutions SET logo_type = $1 WHERE id = $2", [type, s.institutionId]);
+    await appendAudit(db, { requestId: null, institutionId: s.institutionId, actor: s.account, action: "institution.logo" });
+    return c.json({ ok: true });
+  });
+
+  app.put("/institution/listing", staff, async (c) => {
+    const s = c.get("session");
+    if (s.role !== "admin") return c.json({ error: "Only the institution admin can change this." }, 403);
+    const body = z.object({ listed: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Send listed as true or false." }, 400);
+    const res = await db.query(
+      "UPDATE institutions SET listed = $1 WHERE id = $2 AND ($1 = FALSE OR logo_type IS NOT NULL) RETURNING id",
+      [body.data.listed, s.institutionId],
+    );
+    if (res.rows.length === 0) return c.json({ error: "Add a logo first." }, 409);
+    await appendAudit(db, { requestId: null, institutionId: s.institutionId, actor: s.account, action: "institution.listing", detail: body.data });
+    return c.json(body.data);
+  });
+
   app.put("/staff/:account/level", staff, async (c) => {
     const s = c.get("session");
     if (s.role !== "admin") return c.json({ error: "Only the institution admin can change this." }, 403);
     const body = z.object({ level: z.number().int().min(1).max(3) }).safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "Level must be 1, 2 or 3." }, 400);
+    const raw = c.req.param("account")!;
+    if (!isAddress(raw, { strict: false })) return c.json({ error: "No such staff member." }, 404);
+    const account = getAddress(raw.toLowerCase());
     const res = await db.query(
       "UPDATE staff SET level = $1 WHERE account = $2 AND institution_id = $3 RETURNING account",
-      [body.data.level, c.req.param("account"), s.institutionId],
+      [body.data.level, account, s.institutionId],
     );
     if (res.rows.length === 0) return c.json({ error: "No such staff member." }, 404);
     await appendAudit(db, {
       requestId: null, institutionId: s.institutionId, actor: s.account, action: "staff.level",
-      detail: { account: c.req.param("account"), level: body.data.level },
+      detail: { account, level: body.data.level },
     });
     return c.json(body.data);
   });
@@ -385,14 +549,16 @@ export function createApp(deps: Deps) {
       account: z.string().regex(/^0x[0-9a-fA-F]{40}$/), name: z.string().trim().min(2).max(120), position: z.string().trim().max(120).default(""),
     }).safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "Enter a name and a valid wallet address." }, 400);
-    const member = await chain.getMember(body.data.account as Address);
+    // One spelling only: sign-in stores the checksummed address, so any other case would be a second person.
+    const account = getAddress(body.data.account.toLowerCase());
+    const member = await chain.getMember(account);
     if (member.institutionId !== s.institutionId) return c.json({ error: "Add this wallet on-chain first." }, 409);
     await db.query(
       `INSERT INTO staff (account, institution_id, name, position) VALUES ($1,$2,$3,$4)
        ON CONFLICT (account) DO UPDATE SET name = $3, position = $4`,
-      [body.data.account, s.institutionId, body.data.name, body.data.position],
+      [account, s.institutionId, body.data.name, body.data.position],
     );
-    await appendAudit(db, { requestId: null, institutionId: s.institutionId, actor: s.account, action: "staff.added", detail: { account: body.data.account } });
+    await appendAudit(db, { requestId: null, institutionId: s.institutionId, actor: s.account, action: "staff.added", detail: { account } });
     return c.json({ ok: true }, 201);
   });
 
@@ -501,19 +667,248 @@ export function createApp(deps: Deps) {
     return rows[0] ?? null;
   };
 
-  app.get("/shared/:token", rateLimit(60, 60_000), async (c) => {
+  app.get("/shared/:token", limit(60, 60_000), async (c) => {
     const r = await liveShare(c.req.param("token")!);
     if (!r) return c.json({ error: "This link has expired or was withdrawn." }, 404);
     const { institution_id: _i, file_sha256, ...safe } = r;
     return c.json({ ...safe, status: await statusOf(file_sha256) });
   });
 
-  app.get("/shared/:token/file", rateLimit(60, 60_000), async (c) => {
+  app.get("/shared/:token/file", limit(60, 60_000), async (c) => {
     const r = await liveShare(c.req.param("token")!);
     if (!r) return c.json({ error: "This link has expired or was withdrawn." }, 404);
     await appendAudit(db, { requestId: null, institutionId: r.institution_id, actor: "share-link", action: "credential.viewed", detail: { id: r.id } });
     const plain = decryptFile(deps.fileMasterKey, r.institution_id, r.id, await readFile(filePath(r.id)));
     return c.body(new Uint8Array(plain), 200, { "content-type": "application/pdf", "cache-control": "no-store" });
+  });
+
+  // ------------------------------------------------------------- applications
+
+  /** Application files aren't tied to an institution yet, so they use a key of their own. */
+  const APPLICATION_KEY_ID = 0;
+  const saveEvidence = async (id: string, kind: EvidenceKind, bytes: Buffer) => {
+    await mkdir(fileDir, { recursive: true });
+    const name = evidenceFile(id, kind);
+    await writeFile(filePath(name), encryptFile(deps.fileMasterKey, APPLICATION_KEY_ID, name, bytes));
+  };
+  const readEvidence = async (value: unknown) => {
+    if (!(value instanceof File)) return { error: "Attach the document as a PDF, JPEG or PNG." };
+    const bytes = Buffer.from(await value.arrayBuffer());
+    if (bytes.length > MAX_FILE_BYTES) return { error: "Files can be up to 15 MB." };
+    const type = evidenceType(bytes);
+    return type ? { bytes, type } : { error: "Attach the document as a PDF, JPEG or PNG." };
+  };
+
+  app.post("/applications/challenge", limit(30, 60_000), async (c) => {
+    const body = ApplicationChallenge.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Enter your institution's name." }, 400);
+    const nonce = randomBytes(16).toString("hex");
+    const expires = new Date(Date.now() + NONCE_SECONDS * 1000);
+    await db.query("INSERT INTO login_nonces (nonce, expires_at) VALUES ($1, $2)", [nonce, expires.toISOString()]);
+    return c.json({ nonce, message: applicationMessage(body.data.institutionName, nonce) });
+  });
+
+  /** The signature proves the applicant holds the wallet that will run the institution's account. */
+  app.post("/applications", limit(5, 60 * 60_000), uploadLimit, async (c) => {
+    const body = await c.req.parseBody();
+    const form = ApplicationForm.safeParse(body);
+    if (!form.success) return c.json({ error: "Check the form and try again.", issues: z.flattenError(form.error) }, 400);
+    const f = form.data;
+    const evidence = await readEvidence(body.file);
+    if (!evidence.bytes) return c.json({ error: evidence.error }, evidence.error.startsWith("Files") ? 413 : 400);
+
+    const used = await db.query("DELETE FROM login_nonces WHERE nonce = $1 AND expires_at > now() RETURNING nonce", [f.nonce]);
+    if (used.rows.length === 0) return c.json({ error: "The wallet confirmation expired. Try again." }, 401);
+    let wallet: Address;
+    try {
+      wallet = await recoverMessageAddress({ message: applicationMessage(f.institutionName, f.nonce), signature: f.signature as Hex });
+    } catch {
+      return c.json({ error: "The wallet confirmation didn't work. Try again." }, 400);
+    }
+    if ((await chain.getMember(wallet)).role !== "none") return c.json({ error: "This wallet already belongs to an institution." }, 409);
+
+    const id = randomUUID();
+    const trackingToken = randomBytes(24).toString("base64url");
+    const claimed = await db.query(
+      `INSERT INTO applications (id, institution_name, registration_number, institution_type, country, city, website,
+         official_email, phone, applicant_name, applicant_position, applicant_email, signatory_name, signatory_title, wallet,
+         registration_type, tracking_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON CONFLICT DO NOTHING RETURNING id`,
+      [id, f.institutionName, f.registrationNumber, f.institutionType, f.country, f.city, f.website, f.officialEmail, f.phone,
+       f.applicantName, f.applicantPosition, f.applicantEmail, f.signatoryName, f.signatoryTitle, wallet, evidence.type, sha256Hex(trackingToken)],
+    );
+    if (claimed.rows.length === 0) return c.json({ error: "An application with this registration number or wallet is already open." }, 409);
+    try {
+      await saveEvidence(id, "registration", evidence.bytes);
+    } catch (e) {
+      await db.query("DELETE FROM applications WHERE id = $1", [id]);
+      throw e;
+    }
+    await appendAudit(db, { requestId: null, institutionId: null, actor: wallet, action: "application.received", detail: { id } });
+    return c.json({ trackingToken }, 201);
+  });
+
+  const trackedApplication = async (token: string) => {
+    const { rows } = await db.query<Record<string, any>>("SELECT * FROM applications WHERE tracking_hash = $1", [sha256Hex(token)]);
+    return rows[0] ?? null;
+  };
+
+  app.get("/applications/track/:token", limit(60, 60_000), async (c) => {
+    const a = await trackedApplication(c.req.param("token")!);
+    if (!a) return c.json({ error: "No application matches this link." }, 404);
+    return c.json({
+      reference: a.id.slice(0, 8), institutionName: a.institution_name, registrationNumber: a.registration_number,
+      city: a.city, country: a.country, applicantName: a.applicant_name, applicantPosition: a.applicant_position, applicantEmail: a.applicant_email,
+      signatoryName: a.signatory_name, signatoryTitle: a.signatory_title, wallet: a.wallet, status: a.status,
+      reviewReason: a.review_reason, submittedAt: a.created_at,
+    });
+  });
+
+  app.post("/applications/track/:token/mandate", limit(10, 60_000), uploadLimit, async (c) => {
+    const a = await trackedApplication(c.req.param("token")!);
+    if (!a) return c.json({ error: "No application matches this link." }, 404);
+    if (a.status === "approved" || a.status === "rejected") return c.json({ error: "This application has already been decided." }, 409);
+    const evidence = await readEvidence((await c.req.parseBody()).file);
+    if (!evidence.bytes) return c.json({ error: evidence.error }, evidence.error.startsWith("Files") ? 413 : 400);
+    await saveEvidence(a.id, "mandate", evidence.bytes);
+    await db.query("UPDATE applications SET status = 'under_review', mandate_type = $1 WHERE id = $2", [evidence.type, a.id]);
+    await appendAudit(db, { requestId: null, institutionId: null, actor: a.wallet, action: "application.mandate", detail: { id: a.id } });
+    return c.json({ status: "under_review" });
+  });
+
+  const anyApplication = async (id: string) => {
+    if (!z.uuid().safeParse(id).success) return null;
+    const { rows } = await db.query<Record<string, any>>("SELECT * FROM applications WHERE id = $1", [id]);
+    return rows[0] ?? null;
+  };
+
+  app.get("/platform/applications", platform, async (c) => {
+    const { rows } = await db.query(
+      `SELECT id, institution_name, country, applicant_name, status, created_at FROM applications
+       ORDER BY (status = 'under_review') DESC, (status = 'awaiting_mandate') DESC, created_at DESC LIMIT 200`,
+    );
+    return c.json(rows);
+  });
+
+  app.get("/platform/applications/:id", platform, async (c) => {
+    const a = await anyApplication(c.req.param("id")!);
+    if (!a) return c.json({ error: "Not found." }, 404);
+    const { tracking_hash: _omit, ...safe } = a;
+    return c.json({ ...safe, on_chain: (await chain.getMember(a.wallet)).role === "admin" });
+  });
+
+  app.get("/platform/applications/:id/files/:kind", platform, async (c) => {
+    const a = await anyApplication(c.req.param("id")!);
+    const kind = c.req.param("kind");
+    const type = kind === "registration" ? a?.registration_type : kind === "mandate" ? a?.mandate_type : null;
+    if (!a || !type) return c.json({ error: "Not found." }, 404);
+    const name = evidenceFile(a.id, kind as EvidenceKind);
+    const plain = decryptFile(deps.fileMasterKey, APPLICATION_KEY_ID, name, await readFile(filePath(name)));
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "application.file_viewed", detail: { id: a.id, kind } });
+    return c.body(new Uint8Array(plain), 200, { "content-type": type, "cache-control": "no-store" });
+  });
+
+  /** Runs after the on-chain registration, which is what actually admits the institution. */
+  app.post("/platform/applications/:id/approve", platform, async (c) => {
+    const a = await anyApplication(c.req.param("id")!);
+    if (!a) return c.json({ error: "Not found." }, 404);
+    if (a.status !== "under_review") return c.json({ error: "This application isn't ready for a decision." }, 409);
+    const member = await chain.getMember(a.wallet);
+    if (member.role !== "admin") return c.json({ error: "Register this institution on-chain first." }, 409);
+    await syncInstitutions(db, chain);
+    await db.query("UPDATE institutions SET location = $1 WHERE id = $2", [`${a.city}, ${a.country}`.slice(0, 120), member.institutionId]);
+    await db.query(
+      "UPDATE applications SET status = 'approved', reviewed_at = now(), institution_id = $1 WHERE id = $2",
+      [member.institutionId, a.id],
+    );
+    await appendAudit(db, { requestId: null, institutionId: member.institutionId, actor: "platform", action: "application.approved", detail: { id: a.id } });
+    return c.json({ status: "approved", institutionId: member.institutionId });
+  });
+
+  app.post("/platform/applications/:id/reject", platform, async (c) => {
+    const a = await anyApplication(c.req.param("id")!);
+    if (!a) return c.json({ error: "Not found." }, 404);
+    if (a.status === "approved" || a.status === "rejected") return c.json({ error: "This application has already been decided." }, 409);
+    const body = z.object({ reason: z.string().trim().min(3).max(1000) }).safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Tell the applicant why." }, 400);
+    await db.query(
+      "UPDATE applications SET status = 'rejected', review_reason = $1, reviewed_at = now() WHERE id = $2",
+      [body.data.reason, a.id],
+    );
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "application.rejected", detail: { id: a.id } });
+    return c.json({ status: "rejected" });
+  });
+
+  /**
+   * Everything sign-in depends on comes from this network, so a mistake here could lock the admin
+   * out. Nothing is saved unless the RPC answers on this chain and the admin still owns the registry.
+   */
+  app.put("/platform/network", platform, async (c) => {
+    const body = NetworkForm.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Check the network details." }, 400);
+    const n = body.data;
+    const probe = await chain.probeNetwork(n.rpcUrl, n.registry as Address).catch(() => null);
+    if (!probe) return c.json({ error: "No Legitfy registry answered at that RPC URL and address." }, 422);
+    if (probe.chainId !== n.chainId) return c.json({ error: "That RPC URL is on a different chain ID." }, 422);
+    if (probe.owner.toLowerCase() !== (await chain.platformOwner()).toLowerCase()) {
+      return c.json({ error: "That registry must be owned by the current platform admin wallet." }, 422);
+    }
+    await db.query(
+      `INSERT INTO settings (key, value) VALUES ('network', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+      [JSON.stringify(n)],
+    );
+    chain.useNetwork(n.rpcUrl, n.registry as Address);
+    await syncInstitutions(db, chain);
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "network.updated", detail: n });
+    return c.json(n);
+  });
+
+  /** A network is only listed once your own registry answers there, so the list can't overstate. */
+  app.post("/platform/networks", platform, async (c) => {
+    const body = NetworkForm.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Check the network details." }, 400);
+    const n = body.data;
+    const main = { ...deps.network, ...(await savedNetwork(db)) };
+    const others = await extraNetworks(db);
+    if (n.chainId === main.chainId || others.some((o) => o.chainId === n.chainId)) return c.json({ error: "That network is already listed." }, 409);
+    if (others.length >= MAX_EXTRA_NETWORKS) return c.json({ error: "The network list is full." }, 409);
+    const probe = await chain.probeNetwork(n.rpcUrl, n.registry as Address).catch(() => null);
+    if (!probe) return c.json({ error: "No Legitfy registry answered at that RPC URL and address." }, 422);
+    if (probe.chainId !== n.chainId) return c.json({ error: "That RPC URL is on a different chain ID." }, 422);
+    if (probe.owner.toLowerCase() !== (await chain.platformOwner()).toLowerCase()) {
+      return c.json({ error: "That registry must be owned by the current platform admin wallet." }, 422);
+    }
+    await saveExtraNetworks(db, [...others, n]);
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "network.added", detail: n });
+    return c.json(n, 201);
+  });
+
+  app.delete("/platform/networks/:chainId", platform, async (c) => {
+    const id = Number(c.req.param("chainId"));
+    const others = await extraNetworks(db);
+    if (!others.some((n) => n.chainId === id)) return c.json({ error: "Not found." }, 404);
+    await saveExtraNetworks(db, others.filter((n) => n.chainId !== id));
+    await appendAudit(db, { requestId: null, institutionId: null, actor: "platform", action: "network.removed", detail: { chainId: id } });
+    return c.json({ ok: true });
+  });
+
+  app.post("/platform/networks/:chainId/logo", platform, uploadLimit, async (c) => {
+    const id = Number(c.req.param("chainId"));
+    if (!Number.isInteger(id) || id <= 0) return c.json({ error: "Not found." }, 404);
+    const file = (await c.req.parseBody()).file;
+    if (!(file instanceof File)) return c.json({ error: "Upload the logo as a PNG or JPEG." }, 400);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (bytes.length > MAX_LOGO_BYTES) return c.json({ error: "Logos can be up to 1 MB." }, 413);
+    const type = evidenceType(bytes);
+    if (!type?.startsWith("image/")) return c.json({ error: "Upload the logo as a PNG or JPEG." }, 400);
+    await mkdir(fileDir, { recursive: true });
+    await writeFile(filePath(`network-logo-${id}`), bytes);
+    const logos = { ...(await networkLogos(db)), [id]: type };
+    await db.query(
+      "INSERT INTO settings (key, value) VALUES ('network_logos', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [JSON.stringify(logos)],
+    );
+    return c.json({ ok: true });
   });
 
   // ---------------------------------------------------------------- platform
@@ -530,6 +925,7 @@ export function createApp(deps: Deps) {
       institutions: institutions.rows,
       documents: await n("SELECT count(*)::int AS n FROM credentials"),
       requests: await n("SELECT count(*)::int AS n FROM requests"),
+      pendingApplications: await n("SELECT count(*)::int AS n FROM applications WHERE status = 'under_review'"),
     });
   });
 
@@ -559,7 +955,8 @@ export function createApp(deps: Deps) {
     const r = await ownRequest(c.req.param("id")!, s.institutionId);
     if (!r) return c.json({ error: "Not found." }, 404);
     const { tracking_hash: _omit, ...safe } = r;
-    return c.json(safe);
+    const otherIssuer = r.registry_institution_id != null && r.registry_institution_id !== s.institutionId;
+    return c.json({ ...safe, registry_other_issuer: otherIssuer });
   });
 
   app.get("/requests/:id/file", staff, async (c) => {
@@ -576,7 +973,11 @@ export function createApp(deps: Deps) {
     const s = c.get("session");
     const r = await ownRequest(c.req.param("id")!, s.institutionId);
     if (!r) return c.json({ error: "Not found." }, 404);
-    await db.query("UPDATE requests SET assigned_to = $1, status = 'in_review' WHERE id = $2", [s.account, r.id]);
+    const claimed = await db.query(
+      "UPDATE requests SET assigned_to = $1, status = 'in_review' WHERE id = $2 AND status <> 'answered' RETURNING id",
+      [s.account, r.id],
+    );
+    if (claimed.rows.length === 0) return c.json({ error: "This request has already been answered." }, 409);
     await appendAudit(db, { requestId: r.id, institutionId: s.institutionId, actor: s.account, action: "request.claimed" });
     return c.json({ ok: true });
   });
@@ -585,6 +986,7 @@ export function createApp(deps: Deps) {
     const s = c.get("session");
     const r = await ownRequest(c.req.param("id")!, s.institutionId);
     if (!r) return c.json({ error: "Not found." }, 404);
+    if (r.status === "answered") return c.json({ error: "This request has already been answered." }, 409);
     const body = z.object({ reason: z.string().trim().min(3).max(500) }).safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "Say why you're escalating this." }, 400);
     const next = escalateForSla(r.level, new Date());
@@ -612,11 +1014,13 @@ export function createApp(deps: Deps) {
 
     const answeredAt = new Date().toISOString();
     const receipt = sha256Hex(JSON.stringify([r.id, r.file_sha256, body.data.outcome, s.institutionId, s.account, answeredAt]));
-    await db.query(
+    // Checked again in the write: two people answering at once must not both succeed.
+    const saved = await db.query(
       `UPDATE requests SET status = 'answered', answer_outcome = $1, answer_note = $2, answered_by = $3,
-         answered_at = $4, receipt_hash = $5 WHERE id = $6`,
+         answered_at = $4, receipt_hash = $5 WHERE id = $6 AND status <> 'answered' RETURNING id`,
       [body.data.outcome, body.data.note, s.account, answeredAt, receipt, r.id],
     );
+    if (saved.rows.length === 0) return c.json({ error: "This request has already been answered." }, 409);
     await appendAudit(db, {
       requestId: r.id, institutionId: s.institutionId, actor: s.account, action: "request.answered",
       detail: { outcome: body.data.outcome, receipt },
@@ -651,7 +1055,7 @@ export function createApp(deps: Deps) {
       [s.institutionId, day],
     );
     const denial = evaluateSponsorship({
-      sender, callData: op.data.callData as Hex, registry: deps.registry,
+      sender, callData: op.data.callData as Hex, registry: ((await savedNetwork(db)).registry ?? deps.registry) as Address,
       isActiveMember: await chain.canIssue(sender),
       usedToday: used.rows[0]?.count ?? 0, dailyQuota: deps.dailySponsorQuota,
     });

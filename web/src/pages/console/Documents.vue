@@ -4,8 +4,9 @@ import { useRouter } from "vue-router";
 import { Plus } from "lucide-vue-next";
 import PageHead from "../../components/console/PageHead.vue";
 import { api } from "../../lib/api";
-import { longDate, newCredentialId, shortId, stampCertificate, STATUS_LABELS } from "../../lib/certificate";
+import { longDate, newCredentialId, shortId, stampCertificate, statusLabel } from "../../lib/certificate";
 import { sha256File } from "../../lib/hash";
+import { t } from "../../lib/i18n";
 import { canWrite, issue } from "../../lib/wallet";
 
 interface Row { id: string; owner_name: string; title: string; created_at: string; status: string }
@@ -37,17 +38,17 @@ async function create() {
   formError.value = "";
   const id = newCredentialId();
   try {
-    step.value = "Stamping the QR code";
+    step.value = t("documents.stamping");
     const stamped = await stampCertificate(file.value, id);
     const hash = await sha256File(stamped);
-    step.value = "Saving the encrypted file";
+    step.value = t("documents.saving");
     const body = new FormData();
     body.set("credentialId", id);
     for (const [k, v] of Object.entries(form)) body.set(k, v);
     body.set("file", stamped);
     await api("/credentials", { method: "POST", body });
     if (canWrite()) {
-      step.value = "Waiting for your wallet";
+      step.value = t("common.waitingWallet");
       // Saved already: if this step fails, Document details offers to publish again.
       await issue(id, hash).catch(() => undefined);
     }
@@ -61,25 +62,25 @@ async function create() {
 </script>
 
 <template>
-  <PageHead title="Documents">
-    <button class="btn btn-quiet bg-white!" @click="start()"><Plus class="size-4" aria-hidden="true" />Create certificate</button>
+  <PageHead :title="t('documents.title')">
+    <button class="btn btn-quiet" @click="start()"><Plus class="size-4" aria-hidden="true" />{{ t("documents.create") }}</button>
   </PageHead>
   <p v-if="error" class="mt-4 text-seal" role="alert">{{ error }}</p>
 
-  <div class="mt-4 rounded-md bg-gradient-to-r from-white to-sky p-6 shadow-sm">
+  <div class="console-banner mt-4 p-6">
     <button
-      class="grid h-28 w-40 place-items-center rounded border-2 border-dashed border-harbour/60 bg-[#e6e8eb] text-harbour hover:bg-white"
-      aria-label="Create certificate"
+      class="grid h-28 w-40 place-items-center rounded relative z-1 border-2 border-dashed border-white/60 bg-white/10 text-white hover:bg-white/20"
+      :aria-label="t('documents.create')"
       @click="start()"
       @dragover.prevent
       @drop.prevent="start($event.dataTransfer?.files[0])"
     ><Plus class="size-8" aria-hidden="true" /></button>
   </div>
 
-  <p v-if="rows?.length === 0" class="panel mt-4 p-6">No certificates yet. Create one to publish its fingerprint to the public record.</p>
-  <div v-if="rows?.length" class="panel mt-4 overflow-x-auto" tabindex="0" role="region" aria-label="Certificates">
+  <p v-if="rows?.length === 0" class="panel mt-4 p-6">{{ t("documents.empty") }}</p>
+  <div v-if="rows?.length" class="panel mt-4 overflow-x-auto" tabindex="0" role="region" :aria-label="t('documents.table')">
     <table class="data-table">
-      <thead class="bg-gradient"><tr><th>No</th><th>Certificate ID</th><th>Certificate owner</th><th>Created date</th><th>Purpose</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead class="bg-gradient"><tr><th>{{ t("common.no") }}</th><th>{{ t("documents.id") }}</th><th>{{ t("documents.owner") }}</th><th>{{ t("documents.created") }}</th><th>{{ t("documents.purpose") }}</th><th>{{ t("common.status") }}</th><th>{{ t("common.actions") }}</th></tr></thead>
       <tbody>
         <tr v-for="(r, i) in rows" :key="r.id">
           <td>{{ i + 1 }}</td>
@@ -87,8 +88,8 @@ async function create() {
           <td>{{ r.owner_name }}</td>
           <td class="whitespace-nowrap">{{ longDate(r.created_at) }}</td>
           <td>{{ r.title }}</td>
-          <td class="whitespace-nowrap">{{ STATUS_LABELS[r.status] }}</td>
-          <td><RouterLink :to="`/app/documents/${r.id}`" class="btn btn-view" :aria-label="`View ${r.owner_name}, ${r.title}`">View</RouterLink></td>
+          <td class="whitespace-nowrap">{{ statusLabel(r.status) }}</td>
+          <td><RouterLink :to="`/app/documents/${r.id}`" class="btn btn-view" :aria-label="t('documents.viewItem', { owner: r.owner_name, title: r.title })">{{ t("common.view") }}</RouterLink></td>
         </tr>
       </tbody>
     </table>
@@ -96,19 +97,19 @@ async function create() {
 
   <dialog ref="dialog" class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-lg p-0 backdrop:bg-harbour-deep/50">
     <form class="space-y-4 p-6" @submit.prevent="create">
-      <h2 class="text-xl">Create certificate</h2>
-      <label class="block">Certificate owner<input v-model="form.ownerName" class="field mt-1" required minlength="2" maxlength="200" /></label>
-      <label class="block">Purpose<input v-model="form.title" class="field mt-1" required minlength="2" maxlength="200" placeholder="BSc in Computer Science" /></label>
-      <label class="block">Description<textarea v-model="form.description" class="field mt-1" rows="2" maxlength="2000"></textarea></label>
-      <label class="block">Certificate (PDF, up to 15 MB)
+      <h2 class="text-xl">{{ t("documents.create") }}</h2>
+      <label class="block">{{ t("documents.owner") }}<input v-model="form.ownerName" class="field mt-1" required minlength="2" maxlength="200" /></label>
+      <label class="block">{{ t("documents.purpose") }}<input v-model="form.title" class="field mt-1" required minlength="2" maxlength="200" :placeholder="t('documents.purposeHint')" /></label>
+      <label class="block">{{ t("documents.description") }}<textarea v-model="form.description" class="field mt-1" rows="2" maxlength="2000"></textarea></label>
+      <label class="block">{{ t("documents.file") }}
         <input type="file" accept="application/pdf" class="field mt-1" :required="!file" @change="file = ($event.target as HTMLInputElement).files?.[0]" />
       </label>
       <p v-if="file" class="text-sm text-ink-soft">{{ file.name }}</p>
-      <p class="text-sm text-ink-soft">A QR code is added to the last page. The stamped copy is the one that verifies, so give that copy to the holder.</p>
+      <p class="text-sm text-ink-soft">{{ t("documents.stampNote") }}</p>
       <p v-if="formError" class="text-seal" role="alert">{{ formError }}</p>
       <div class="flex justify-end gap-3">
-        <button type="button" class="btn btn-quiet" :disabled="!!step" @click="dialog?.close()">Cancel</button>
-        <button class="btn" :disabled="!!step">{{ step || "Create certificate" }}</button>
+        <button type="button" class="btn btn-quiet" :disabled="!!step" @click="dialog?.close()">{{ t("common.cancel") }}</button>
+        <button class="btn" :disabled="!!step">{{ step || t("documents.create") }}</button>
       </div>
     </form>
   </dialog>

@@ -9,6 +9,7 @@ export type RegistryStatus = "not_found" | "authentic" | "revoked" | "replaced" 
 export interface RegistryMatch {
   status: RegistryStatus;
   institutionName: string | null;
+  institutionId: number | null;
 }
 export interface InstitutionInfo {
   id: number;
@@ -25,6 +26,9 @@ export interface Chain {
   canIssue(account: Address): Promise<boolean>;
   verifyByHash(fileHash: Hex): Promise<RegistryMatch>;
   listInstitutions(): Promise<InstitutionInfo[]>;
+  /** Reads a candidate network without switching to it. */
+  probeNetwork(rpcUrl: string, registry: Address): Promise<{ chainId: number; owner: Address }>;
+  useNetwork(rpcUrl: string, registry: Address): void;
 }
 
 const registryAbi = parseAbi([
@@ -45,9 +49,25 @@ const ROLES: MemberRole[] = ["none", "operator", "admin"];
 const STATUSES: RegistryStatus[] = ["not_found", "authentic", "revoked", "replaced", "suspended"];
 
 export function viemChain(opts: { rpcUrl: string; registry: Address; factory: Address }): Chain {
-  const client = createPublicClient({ transport: http(opts.rpcUrl) });
-  const registry = { address: opts.registry, abi: registryAbi } as const;
+  const clientFor = (rpcUrl: string) => createPublicClient({ transport: http(rpcUrl) });
+  const contractAt = (address: Address) => ({ address, abi: registryAbi }) as const;
+  let client = clientFor(opts.rpcUrl);
+  let registry = contractAt(opts.registry);
   return {
+    async probeNetwork(rpcUrl, address) {
+      const candidate = clientFor(rpcUrl);
+      // verifyByHash proves this is our current contract. Plenty of contracts have an owner.
+      const [chainId, owner] = await Promise.all([
+        candidate.getChainId(),
+        candidate.readContract({ ...contractAt(address), functionName: "owner" }),
+        candidate.readContract({ ...contractAt(address), functionName: "verifyByHash", args: [`0x${"0".repeat(64)}`] }),
+      ]);
+      return { chainId, owner };
+    },
+    useNetwork(rpcUrl, address) {
+      client = clientFor(rpcUrl);
+      registry = contractAt(address);
+    },
     platformOwner: () => client.readContract({ ...registry, functionName: "owner" }),
     accountOf: (owner) =>
       client.readContract({ address: opts.factory, abi: factoryAbi, functionName: "getAddress", args: [owner, 0n] }),
@@ -58,7 +78,11 @@ export function viemChain(opts: { rpcUrl: string; registry: Address; factory: Ad
     canIssue: (account) => client.readContract({ ...registry, functionName: "canIssue", args: [account] }),
     async verifyByHash(fileHash) {
       const v = await client.readContract({ ...registry, functionName: "verifyByHash", args: [fileHash] });
-      return { status: STATUSES[v.status] ?? "not_found", institutionName: v.institutionName || null };
+      return {
+        status: STATUSES[v.status] ?? "not_found",
+        institutionName: v.institutionName || null,
+        institutionId: v.credential.institutionId || null,
+      };
     },
     async listInstitutions() {
       const count = await client.readContract({ ...registry, functionName: "institutionCount" });

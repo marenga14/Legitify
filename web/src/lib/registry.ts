@@ -1,5 +1,6 @@
-import { createPublicClient, http, isHex, parseAbi, type Hex } from "viem";
-import { chain, registryAddress } from "./config";
+import { createPublicClient, http, isHex, parseAbi, type Address, type Hex } from "viem";
+import { chain, explorerUrl, networkName, otherNetworks, registryAddress } from "./config";
+import { t } from "./i18n";
 
 const abi = parseAbi([
   "struct Credential { address issuer; uint32 institutionId; uint40 issuedAt; uint8 revocationReason; uint40 revokedAt; bytes32 fileHash; bytes32 replacedBy; bytes storageCid; }",
@@ -12,7 +13,7 @@ const abi = parseAbi([
 
 export type VerdictStatus = "not_found" | "authentic" | "revoked" | "replaced" | "suspended";
 const STATUSES: VerdictStatus[] = ["not_found", "authentic", "revoked", "replaced", "suspended"];
-const REASONS = ["", "issued in error", "fraud", "withdrawn", "another reason"];
+const REASONS = ["", "issuedInError", "fraud", "withdrawn", "other"];
 
 export interface Verdict {
   status: VerdictStatus;
@@ -23,13 +24,24 @@ export interface Verdict {
   revocationReason: string;
   replacedBy: Hex | null;
   fileHash: Hex;
+  /** Where the record was found. */
+  network: string;
+  recordUrl: string;
 }
 
 const ZERO = `0x${"0".repeat(64)}`;
 export const client = createPublicClient({ chain, transport: http() });
 const toDate = (s: number) => (s ? new Date(s * 1000) : null);
 
-function toVerdict(v: {
+interface Target { client: typeof client; address: Address; network: string; explorer: string }
+const targets = (): Target[] => [
+  { client, address: contract().address, network: networkName, explorer: explorerUrl },
+  ...otherNetworks.map((n) => ({
+    client: createPublicClient({ transport: http(n.rpcUrl) }) as typeof client, address: n.registry, network: n.name, explorer: n.explorerUrl,
+  })),
+];
+
+function toVerdict(target: Target, v: {
   status: number; credentialId: Hex; institutionName: string;
   credential: { issuedAt: number; revokedAt: number; revocationReason: number; replacedBy: Hex; fileHash: Hex };
 }): Verdict {
@@ -43,19 +55,33 @@ function toVerdict(v: {
     revocationReason: REASONS[c.revocationReason] ?? "",
     replacedBy: c.replacedBy === ZERO ? null : c.replacedBy,
     fileHash: c.fileHash,
+    network: target.network,
+    recordUrl: `${target.explorer}/address/${target.address}`,
   };
 }
 
 export const registryConnected = Boolean(registryAddress);
 const contract = () => {
-  if (!registryAddress) throw new Error("The public registry isn't connected in this environment.");
+  if (!registryAddress) throw new Error(t("errors.registryOff"));
   return { address: registryAddress, abi } as const;
 };
 
-export const verifyByHash = async (hash: Hex) =>
-  toVerdict(await client.readContract({ ...contract(), functionName: "verifyByHash", args: [hash] }));
-export const verifyById = async (id: Hex) =>
-  toVerdict(await client.readContract({ ...contract(), functionName: "verifyById", args: [id] }));
+/**
+ * Searches every listed network. "No record" is only an answer if each one replied: an unreachable
+ * network could hold the record, so that case fails instead of telling someone a real file is missing.
+ */
+async function search(functionName: "verifyByHash" | "verifyById", value: Hex): Promise<Verdict> {
+  const results = await Promise.allSettled(targets().map(async (target) =>
+    toVerdict(target, await target.client.readContract({ address: target.address, abi, functionName, args: [value] }))));
+  const answers = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const found = answers.find((v) => v.status !== "not_found");
+  if (found) return found;
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw failed.reason;
+  return answers[0]!;
+}
+export const verifyByHash = (hash: Hex) => search("verifyByHash", hash);
+export const verifyById = (id: Hex) => search("verifyById", id);
 export const isCredentialId = (v: string): v is Hex => isHex(v) && v.length === 66;
 
 export async function registryStats() {

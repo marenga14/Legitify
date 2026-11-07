@@ -1,14 +1,13 @@
 import { bytesToHex, type Hex } from "viem";
+import { dateLocale, t } from "./i18n";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 const QR_POINTS = 64;
 const MARGIN = 16;
 
-export const STATUS_LABELS: Record<string, string> = {
-  pending: "Not published", authentic: "Issued", revoked: "Revoked", replaced: "Replaced", suspended: "Issuer suspended",
-};
+export const statusLabel = (status: string) => t(`status.${status}`);
 export const shortId = (id: string) => `${id.slice(0, 10)}…${id.slice(-6)}`;
-export const longDate = (d: string) => new Date(d).toLocaleDateString(undefined, { dateStyle: "full" });
+export const longDate = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { dateStyle: "full" });
 export const newCredentialId = (): Hex => bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 
 /**
@@ -16,14 +15,14 @@ export const newCredentialId = (): Hex => bytesToHex(crypto.getRandomValues(new 
  * is what gets fingerprinted, so it's also the exact copy a holder must present to verify.
  */
 export async function stampCertificate(file: File, credentialId: Hex): Promise<File> {
-  if (file.size > MAX_BYTES) throw new Error("Files can be up to 15 MB.");
+  if (file.size > MAX_BYTES) throw new Error(t("errors.fileTooLarge"));
   // Large, and only staff creating a certificate need them.
   const [{ PDFDocument, rgb }, { default: QRCode }] = await Promise.all([import("pdf-lib"), import("qrcode")]);
   let pdf: Awaited<ReturnType<typeof PDFDocument.load>>;
   try {
     pdf = await PDFDocument.load(await file.arrayBuffer());
   } catch {
-    throw new Error("This PDF can't be stamped. Check it isn't password-protected or damaged.");
+    throw new Error(t("errors.cantStamp"));
   }
   const png = await QRCode.toDataURL(`${location.origin}/v/${credentialId}`, { margin: 1, width: 256 });
   const qr = await pdf.embedPng(png);

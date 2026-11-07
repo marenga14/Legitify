@@ -21,7 +21,7 @@ export interface SponsorInput {
   dailyQuota: number;
 }
 
-/** Decides whether Legitify pays for a UserOperation. Anything unrecognised is refused. */
+/** Decides whether Legitfy pays for a UserOperation. Anything unrecognised is refused. */
 export function evaluateSponsorship(input: SponsorInput): Denial | null {
   if (!input.isActiveMember) return "not_a_member";
   if (input.usedToday >= input.dailyQuota) return "quota_exceeded";
