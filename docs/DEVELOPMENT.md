@@ -74,12 +74,22 @@ The API has to be hosted. Public checks only need the static site and an RPC, bu
 
 ```sh
 cd /opt/legitfy
-cp .env.example .env        # database password and the nginx network's name
+cp .env.example .env        # database password
 cp app.env.example app.env  # API settings
 docker compose up -d --build
 ```
 
-Add the server blocks from `deploy/nginx/legitfy.conf` to `/opt/proxy/nginx.conf`, then run `docker compose exec nginx nginx -s reload` from `/opt/proxy`.
+The shared `web` network must already exist, which it does once `/opt/proxy` is running. This stack publishes no ports, so it can't clash with other apps on the server.
+
+Add the server blocks from `deploy/nginx/legitfy.conf` to the `http` block of `/opt/proxy/nginx.conf`, and put the certificate at `/opt/proxy/certs/api.legitfy.dev/` as `fullchain.pem` and `privkey.pem`. Then, from `/opt/proxy`:
+
+```sh
+docker compose exec nginx grep -c api.legitfy.dev /etc/nginx/nginx.conf   # must not be 0
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload
+```
+
+Edit `nginx.conf` with `nano`, not `vim` or `sed -i`. Those replace the file, and Docker's single-file mount keeps pointing at the old one, so nginx can't see the change. If the first command fails or prints 0, run `docker compose restart nginx`, which briefly interrupts every app behind the proxy.
 
 **Web (Vercel).** Set the project root to `web/` and add these variables. Vercel fills in the build, and `web/vercel.json` handles page routes.
 

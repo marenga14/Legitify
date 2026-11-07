@@ -1,5 +1,6 @@
 # /opt/legitfy/compose.yaml
-# nginx reaches the API as "legitfy" on the shared proxy network. Postgres has no route to it.
+# nginx in /opt/proxy reaches the API as "legitfy" on the shared "web" network, so this publishes no
+# ports. Postgres stays on the internal network, with no route to nginx.
 services:
   legitfy:
     build: ./api
@@ -16,7 +17,7 @@ services:
     volumes:
       - legitfy-files:/data
     networks:
-      - proxy
+      - web
       - internal
 
   legitfy-db:
@@ -43,6 +44,5 @@ volumes:
 
 networks:
   internal:
-  proxy:
+  web:
     external: true
-    name: ${PROXY_NETWORK:-web}
